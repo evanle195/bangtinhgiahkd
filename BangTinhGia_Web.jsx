@@ -1,6 +1,18 @@
 import { useState, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 
+// 1. DEFINITION: Định nghĩa các tỷ lệ VAT theo nhóm hàng (Cần được cập nhật theo thực tế của bạn)
+const VAT_RATES = {
+  "Chai": 10, // Ví dụ: Nhóm Chai chịu 10% VAT
+  "Hộp": 8,  // Ví dụ: Nhóm Hộp chịu 8% VAT
+  "Bia": 10, // Ví dụ: Nhóm Bia chịu 10% VAT
+  "Sì Gọn": 12, // Ví dụ: Nhóm Sì Gọn chịu 12% VAT
+  "Abbott": 10, // Ví dụ: Nhóm Abbott chịu 10% VAT
+  "Meizan": 10, // Ví dụ: Nhóm Meizan chịu 10% VAT
+  // Thêm các nhóm hàng khác tại đây
+  "Tất cả": 10, // Mức mặc định nếu không tìm thấy nhóm cụ thể
+};
+
 const fmtVND  = (n) => n == null || isNaN(n) ? "—" : Math.round(n).toLocaleString("vi-VN");
 const pct     = (n) => n == null || isNaN(n) || n === "" ? "—" : (n * 100).toFixed(1) + "%";
 const ceil500 = (n) => Math.ceil(n / 500) * 500;
@@ -13,12 +25,12 @@ const C = {
   vatBg:"#D4F0E8",   vatC:  "#0F6E56",
   chuaBg:"#E1F5EE",  chuaC: "#085041",
   gbBg: "#E6F1FB",   gbC:   "#0C447C",
-  thueBg:"#FAEEDA",  thueC: "#633806",
+  thueBg:"#FAEEDA",  thueC:  "#633806",
   dtBg: "#FFF2CC",   dtC:   "#854F0B",
   lnBg: "#EAF3DE",   lnPos: "#175404", lnNeg: "#791F1F", ln0: "#5F5E5A",
   pctBg:"#D4F0E8",   pctPos:"#085041", pctNeg:"#A32D2D",
   hvBg: "#F1EFE8",   hvC:   "#444441",
-  clBg: "#E8EDF4",   clPos: "#0C447C", clNeg: "#A32D2D",
+  clBg: "#E8EDF4",   clPos:"#0C447C", clNeg:"#A32D2D",
   dim:  "#A8A8A0",
 };
 
@@ -28,8 +40,8 @@ const GH = {
   sell:{ bg:"#1F5099", c:"#FFFFFF" },
   tax: { bg:"#7F4C02", c:"#FFFFFF" },
   prof:{ bg:"#1D6B34", c:"#FFFFFF" },
-  hv:  { bg:"#444441", c:"#FFFFFF" },
-  ev:  { bg:"#4A3278", c:"#FFFFFF" },
+  hv:  { bg:"#4A3278", c:"#FFFFFF" },
+  ev:  { bg:"#444441", c:"#FFFFFF" },
 };
 
 const ST = {
@@ -40,21 +52,39 @@ const ST = {
   nd:    { label:"—",         fg:"#888780", bg:"transparent" },
 };
 
-// ── Row computation ───────────────────────────────────────────────────────────
-function compute(row, vat, hkd) {
-  const gv      = row.giaVon || 0;
-  const vatAn   = gv * vat / (1 + vat);
-  const chuaVat = gv / (1 + vat);
-  const gb      = row.giaBan || 0;
-  const thue    = gb * hkd;
-  const dtSau   = gb * (1 - hkd);
+// ── Row computation (Logic đã được sửa đổi để tính VAT động) ───────────────────
+function compute(row, vatRateMap, hkdRate, vatGlobal, gv, gb) {
+  const nhomKey = row.nhom || "Tất cả";
+  // Lấy tỷ lệ VAT cụ thể từ map, nếu không có thì dùng mức mặc định "Tất cả"
+  const currentVat = vatRateMap[nhomKey] || VAT_RATES["Tất cả"];
+  const vatR = currentVat / 100; // Tỷ lệ VAT thực tế cho dòng này
+
+  // Tính toán các giá trị
+  const vatAn   = gv * vatR / (1 + vatR); // VAT đầu ra dựa trên giá vốn
+  const chuaVat = gv / (1 + vatR);       // Giá vốn chưa VAT
+  const thue    = gb * hkdRate;
+  const dtSau   = gb * (1 - hkdRate);
   const ln      = gv > 0 && gb > 0 ? dtSau - gv : 0;
   const pGV     = gv > 0 && gb > 0 ? ln / gv : null;
   const pDT     = gv > 0 && gb > 0 ? ln / gb : null;
-  const hv      = gv > 0 ? ceil500(gv / (1 - hkd)) : 0;
+  const hv      = gv > 0 ? ceil500(gv / (1 - hkdRate)) : 0;
   const cl      = gv > 0 && gb > 0 ? gb - hv : 0;
   const dg      = gv === 0 ? "nd" : gb === 0 ? "np" : ln > 0 ? "profit" : ln === 0 ? "break" : "loss";
-  return { ...row, vatAn, chuaVat, thue, dtSau, ln, pGV, pDT, hv, cl, dg };
+  
+  return { 
+    ...row, 
+    vatAn, 
+    chuaVat, 
+    thue, 
+    dtSau, 
+    ln, 
+    pGV, 
+    pDT, 
+    hv, 
+    cl, 
+    dg,
+    currentVat: currentVat // Thêm để debug
+  };
 }
 
 // ── Editable price cell with VND thousand-dot formatting ─────────────────────
@@ -96,16 +126,23 @@ function UpZone({ onData }) {
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
       const h   = raw[0];
       const fi  = (s) => h.findIndex((x) => String(x || "").includes(s));
+      
+      // Đảm bảo tìm đúng các cột theo tên trong file CSV
       const iGV = fi("Giá nhập cuối") >= 0 ? fi("Giá nhập cuối") : fi("Giá vốn");
+      const vatInput = fi("VAT nh?p h�ng"); // Cột VAT đầu vào
+      const nhomKey = fi("M? nh? cung c?p"); // Cột Nhóm hàng
+      const giaBan = fi("Bảng giá chung");
+
       const rows = raw.slice(1).filter((r) => r[fi("Mã hàng")]).map((r, i) => ({
         id: i, stt: i + 1,
         ma:    r[fi("Mã hàng")]        || "",
         ten:   r[fi("Tên hàng")]       || "",
         dvt:   r[fi("Đơn vị")]         || "",
-        nhom:  r[fi("Nhóm")]           || "",
+        nhom:  r[nhomKey]              || "Tất cả", // Lấy nhóm hàng
         ton:   Number(r[fi("Tồn")])    || 0,
-        giaVon:Number(r[iGV])          || 0,
-        giaBan:Number(r[fi("Bảng giá chung")]) || 0,
+        giaVon: Number(r[iGV])          || 0,
+        giaBan: Number(r[giaBan]) || 0,
+        vatInput: Number(r[vatInput]) || 0, // Lưu VAT đầu vào
       }));
       onData(rows);
     };
@@ -120,7 +157,7 @@ function UpZone({ onData }) {
       onDrop={(e) => { e.preventDefault(); setDrag(false); parse(e.dataTransfer.files[0]); }}
       style={{
         border: `2px dashed ${drag ? "#378ADD" : "var(--color-border-secondary)"}`,
-        borderRadius: "var(--border-radius-lg)", padding: "2.5rem 2rem",
+        borderRadius: "var(--border-radius-md)", padding: "2.5rem 2rem",
         textAlign: "center", cursor: "pointer",
         background: drag ? "#E6F1FB" : "var(--color-background-secondary)",
         transition: "all .15s",
@@ -131,7 +168,7 @@ function UpZone({ onData }) {
       <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
       <p style={{ fontWeight: 500, color: "#185FA5" }}>Kéo thả file Excel hoặc nhấn để chọn</p>
       <p style={{ fontSize: 12, color: "#5F5E5A", marginTop: 4 }}>
-        Hỗ trợ .xlsx .xls — cần có: Giá nhập cuối, Bảng giá chung
+        Hỗ trợ .xlsx .xls — Cần có: Giá nhập cuối, Bảng giá chung, và cột "Nhóm hàng" để phân loại VAT.
       </p>
     </div>
   );
@@ -151,28 +188,37 @@ function Card({ label, val, color, sub }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [raw,   setRaw]   = useState([]);
-  const [vat,   setVat]   = useState(10);
+  const [vat,   setVat]   = useState(10); // VAT chung cho giao diện
   const [hkd,   setHkd]   = useState(1.5);
   const [q,     setQ]     = useState("");
-  const [nhom,  setNhom]  = useState("Tất cả");
+  const [nhom,  setNhom]  useState("Tất cả"); // Nhóm được dùng để lọc
   const [edits, setEdits] = useState({});
-  const [srt,   setSrt]   = useState({ k: "stt", d: 1 });
+  const [srt,   setSrt]   useState({ k: "stt", d: 1 });
 
-  const vatR = vat / 100, hkdR = hkd / 100;
+  // 2. Cập nhật logic: Tính toán rows sử dụng VAT động và tính tổng VAT
+  const rows = useMemo(() => {
+    let calculatedRows = raw.map((r) => compute(
+        r, 
+        VAT_RATES, // Truyền map tỷ lệ VAT
+        hkd, 
+        vat, 
+        r.giaVon, 
+        r.giaBan
+    ));
 
-  const rows = useMemo(() =>
-    raw.map((r) => compute(
-      { ...r, giaBan: edits[r.id] != null ? edits[r.id] : r.giaBan },
-      vatR, hkdR
-    )), [raw, vatR, hkdR, edits]);
+    // Tính tổng VAT đầu vào
+    const totalInputVat = calculatedRows.reduce((sum, r) => sum + r.vatInput, 0);
+
+    return { calculatedRows, totalInputVat };
+  }, [raw, vat, hkd]);
 
   const nhoms = useMemo(() => {
-    const s = new Set(rows.map((r) => r.nhom).filter(Boolean));
+    const s = new Set(raw.map((r) => r.nhom).filter(Boolean));
     return ["Tất cả", ...Array.from(s).sort()];
-  }, [rows]);
+  }, [raw]);
 
   const filtered = useMemo(() => {
-    let r = rows;
+    let r = rows.calculatedRows;
     if (nhom !== "Tất cả") r = r.filter((x) => x.nhom === nhom);
     if (q.trim()) {
       const lq = q.toLowerCase();
@@ -186,14 +232,16 @@ export default function App() {
   }, [rows, nhom, q, srt]);
 
   const stats = useMemo(() => {
-    const v = rows.filter((r) => r.giaVon > 0 && r.giaBan > 0);
+    const v = rows.calculatedRows.filter((r) => r.giaVon > 0 && r.giaBan > 0);
     return {
-      tot: rows.length, cop: v.length,
+      tot: rows.calculatedRows.length, 
+      cop: v.length,
       loi: v.filter((r) => r.dg === "profit").length,
       lo:  v.filter((r) => r.dg === "loss").length,
       tDT: v.reduce((s, r) => s + r.giaBan, 0),
       tLN: v.reduce((s, r) => s + r.ln, 0),
       tTh: v.reduce((s, r) => s + r.thue, 0),
+      totalInputVat: rows.totalInputVat, // TÍNH TỔNG VAT ĐẦU VÀO
     };
   }, [rows]);
 
@@ -201,7 +249,7 @@ export default function App() {
   const sa = (k) => srt.k === k ? (srt.d === 1 ? " ↑" : " ↓") : "";
   const lc = (v) => v > 0 ? C.lnPos : v < 0 ? C.lnNeg : C.ln0;
 
-  // Reusable header/data cell builders
+  // Reusable header/data cell builders (Giữ nguyên)
   const TH = (label, key, bg) => (
     <th key={label} onClick={key ? () => ds(key) : undefined} style={{
       padding: "5px 7px", fontSize: 11, fontWeight: 600,
@@ -235,13 +283,13 @@ export default function App() {
         Bảng tính giá — HKD nhóm 2
       </p>
       <p style={{ fontSize: 13, color: "#5F5E5A", marginBottom: "1.5rem" }}>
-        Nhập file xuất từ phần mềm quản lý. Hệ thống tự tính VAT, thuế HKD, lợi nhuận và giá hòa vốn.
+        Nhập file xuất từ phần mềm quản lý. Hệ thống tự tính VAT đầu ra theo nhóm hàng, tính thuế HKD, lợi nhuận và giá hòa vốn.
       </p>
       <UpZone onData={setRaw} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: "1.5rem" }}>
         {[
-          ["Thuế VAT đầu vào", vat, setVat, 1, 30],
-          ["Thuế khoán HKD (% DT)", hkd, setHkd, 0.5, 10],
+          ["Thuế VAT đầu ra (theo nhóm)", "vat", setVat, 1, 30],
+          ["Thuế khoán HKD (% DT)", "hkd", setHkd, 0.5, 10],
         ].map(([lbl, val, setter, step, max], i) => (
           <div key={i} style={{ padding: "12px 16px", borderRadius: "var(--border-radius-md)", border: "0.5px solid var(--color-border-tertiary)" }}>
             <p style={{ fontSize: 12, color: "#5F5E5A", marginBottom: 6 }}>{lbl}</p>
@@ -264,7 +312,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
         <div>
           <p style={{ fontWeight: 600, fontSize: 15, margin: 0, color: "#0C447C" }}>Bảng tính giá — HKD nhóm 2</p>
-          <p style={{ fontSize: 11, color: "#888780", marginTop: 2 }}>{rows.length} sản phẩm · VAT {vat}% · Thuế HKD {hkd}%</p>
+          <p style={{ fontSize: 11, color: "#888780", marginTop: 2 }}>{rows.calculatedRows.length} sản phẩm · VAT chung {vat}% · Thuế HKD {hkd}%</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {[["VAT", vat, setVat, 1], ["HKD", hkd, setHkd, 0.5]].map(([lbl, val, setter, step]) => (
@@ -288,6 +336,7 @@ export default function App() {
         <Card label="Tổng doanh thu" val={"₫" + fmtVND(stats.tDT)} color="#0C447C" sub="1 đơn vị/SP" />
         <Card label="Tổng lợi nhuận" val={"₫" + fmtVND(stats.tLN)} color={stats.tLN >= 0 ? "#175404" : "#791F1F"} />
         <Card label="Tổng thuế HKD"  val={"₫" + fmtVND(stats.tTh)} color="#633806" />
+        <Card label="Tổng VAT Đầu vào" val={"₫" + fmtVND(stats.totalInputVat)} color="#D4F0E8" sub="Tổng VAT từ file" />
       </div>
 
       {/* ── Filters ── */}
@@ -307,7 +356,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: "#888780", marginLeft: "auto" }}>{filtered.length} / {rows.length} dòng</span>
+        <span style={{ fontSize: 11, color: "#888780", marginLeft: "auto" }}>{filtered.length} / {rows.calculatedRows.length} dòng</span>
       </div>
 
       {/* ── Table ── */}
@@ -325,7 +374,7 @@ export default function App() {
                 [6, "Thông tin sản phẩm", GH.info],
                 [3, "Giá vốn đầu vào",    GH.cost],
                 [1, "Giá bán ✏",           GH.sell],
-                [2, "Thuế HKD 1,5%",       GH.tax],
+                [2, "Thuế VAT Đầu ra",     GH.tax], // Đổi tên cột
                 [3, "Lợi nhuận",           GH.prof],
                 [2, "Phân tích hòa vốn",   GH.hv],
                 [1, "Đánh giá",            GH.ev],
@@ -348,11 +397,11 @@ export default function App() {
               {TH("ĐVT",                         null,      GH.info.bg)}
               {TH("Nhóm",                       "nhom",    GH.info.bg)}
               {TH("Tồn kho",                    "ton",     GH.info.bg)}
-              {TH("Giá nhập cuối (đã có VAT)",  "giaVon",  GH.cost.bg)}
-              {TH("VAT ẩn",                     "vatAn",   GH.cost.bg)}
+              {TH("Giá nhập cuối (chưa VAT)",  "giaVon",  GH.cost.bg)}
+              {TH("VAT đầu ra (theo nhóm)",     "vatAn",   GH.cost.bg)} {/* Cột VAT động */}
               {TH("Giá chưa VAT",               "chuaVat", GH.cost.bg)}
               {TH("Giá bán ✏",                  "giaBan",  "#0C3D82")}
-              {TH("Thuế nộp",                   "thue",    GH.tax.bg)}
+              {TH("Thuế nộp (HKD)",             "thue",    GH.tax.bg)}
               {TH("DT sau thuế",                "dtSau",   GH.tax.bg)}
               {TH("Lợi nhuận",                  "ln",      GH.prof.bg)}
               {TH("%LN/GV",                     "pGV",     GH.prof.bg)}
@@ -374,7 +423,7 @@ export default function App() {
                   {TD(r.stt,  bg, "#5F5E5A",  { l: true })}
                   {TD(r.ma,   bg, C.maC,      { l: true, bold: true })}
 
-                  {/* Tên hàng — long text with ellipsis */}
+                  {/* Tên hàng */}
                   <td title={r.ten} style={{
                     padding: "4px 7px", fontSize: 12, fontWeight: 500,
                     textAlign: "left", color: C.tenC, background: bg,
@@ -394,7 +443,7 @@ export default function App() {
                   {TD(noData ? "—" : fmtVND(r.vatAn),   C.vatBg,  noData ? C.dim : C.vatC,  { bold: !noData })}
                   {TD(noData ? "—" : fmtVND(r.chuaVat), C.chuaBg, noData ? C.dim : C.chuaC)}
 
-                  {/* Giá bán — editable, formats with thousand dots */}
+                  {/* Giá bán — editable */}
                   <td style={{
                     padding: "2px 4px", background: C.gbBg,
                     borderBottom: "0.5px solid var(--color-border-tertiary)",
