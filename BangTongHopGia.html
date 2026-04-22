@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Bảng Tổng Hợp Giá Bán | HKD Nhóm 2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;background:#F0F4F8;color:#1a202c;min-height:100vh}
+
+.topbar{background:linear-gradient(135deg,#1F4E79 0%,#2D6A4F 100%);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.topbar-left h1{font-size:15px;font-weight:700;color:#fff}
+.topbar-left .sub{font-size:11px;color:#90CDF4;margin-top:1px}
+.topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* UPLOAD */
+.upload-zone{margin:12px 16px;border:2px dashed #90CDF4;border-radius:12px;padding:16px 20px;text-align:center;cursor:pointer;background:#EBF8FF;transition:all .2s;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.upload-zone:hover,.upload-zone.drag{border-color:#3182CE;background:#BEE3F8}
+.upload-zone.has-data{border-color:#48BB78;background:#F0FFF4;border-style:solid}
+.upload-icon{font-size:28px}
+.upload-text p{font-size:13px;font-weight:600;color:#2B6CB0}
+.upload-text small{font-size:11px;color:#4A6FA5}
+.upload-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+
+/* ASSUMPTIONS */
+.asm-bar{margin:0 16px 10px;background:#fff;border:1px solid #BEE3F8;border-radius:10px;padding:10px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.asm-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#2C5282}
+.asm-item label{font-weight:600;white-space:nowrap}
+.asm-item input[type=number]{width:54px;border:1.5px solid #90CDF4;border-radius:6px;padding:3px 7px;font-size:12px;text-align:center;outline:none;background:#fff;color:#1a202c;font-family:inherit}
+.asm-item input[type=number]:focus{border-color:#3182CE}
+.asm-note{font-size:11px;color:#718096;margin-left:auto}
+
+/* SEARCH */
+.search-bar{margin:0 16px 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#searchInput{flex:1;min-width:200px;border:1.5px solid #CBD5E0;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;transition:border .2s;background:#fff;font-family:inherit}
+#searchInput:focus{border-color:#3182CE;box-shadow:0 0 0 3px rgba(49,130,206,.12)}
+.search-count{font-size:12px;color:#718096;white-space:nowrap}
+.btn{padding:6px 13px;border-radius:8px;border:1.5px solid #CBD5E0;background:#fff;font-size:12px;cursor:pointer;color:#4A5568;font-family:inherit;font-weight:500;transition:all .15s}
+.btn:hover{border-color:#3182CE;color:#2B6CB0;background:#EBF8FF}
+.btn.primary{background:#1F4E79;border-color:#1F4E79;color:#fff}
+.btn.primary:hover{background:#2C5F8A}
+.btn.success{background:#276749;border-color:#276749;color:#fff}
+.btn.danger{background:#C53030;border-color:#C53030;color:#fff}
+
+/* FILTERS */
+.filters{padding:0 16px 8px;display:flex;gap:5px;flex-wrap:wrap}
+.fbtn{padding:4px 11px;border-radius:20px;border:1.5px solid #CBD5E0;background:#fff;font-size:11px;cursor:pointer;color:#4A5568;transition:all .15s;font-family:inherit}
+.fbtn:hover{border-color:#3182CE;color:#2B6CB0}
+.fbtn.active{background:#1F4E79;border-color:#1F4E79;color:#fff;font-weight:600}
+
+/* STAT SUMMARY */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:0 16px 10px}
+.scard{background:#fff;border-radius:10px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #CBD5E0}
+.scard .slabel{font-size:10px;color:#718096;margin-bottom:3px;font-weight:500}
+.scard .sval{font-size:16px;font-weight:700;line-height:1.2}
+.scard .ssub{font-size:10px;color:#A0AEC0;margin-top:2px}
+
+/* TABLE */
+.tbl-wrap{margin:0 16px 16px;border-radius:12px;overflow:auto;box-shadow:0 2px 8px rgba(0,0,0,.08);max-height:520px;border:1px solid #E2E8F0}
+table{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px}
+thead th{position:sticky;top:0;z-index:3}
+.gh{padding:5px 8px;font-size:10px;font-weight:700;text-align:center;color:#fff;border-right:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(0,0,0,.12);white-space:nowrap;letter-spacing:.3px}
+.ch{padding:5px 7px;font-size:11px;font-weight:600;text-align:center;border-right:1px solid rgba(255,255,255,.13);border-bottom:2px solid rgba(0,0,0,.1);white-space:nowrap;cursor:pointer;user-select:none;color:#fff}
+.ch:hover{filter:brightness(1.15)}
+.ch.sa::after{content:" ↑"}.ch.sd::after{content:" ↓"}
+tbody tr{transition:background .08s}
+tbody tr:nth-child(even){background:#F7FAFC}
+tbody tr:hover{background:#EBF8FF!important}
+td{padding:5px 7px;border-right:1px solid #E8EEF4;border-bottom:1px solid #EDF2F7;white-space:nowrap;vertical-align:middle}
+td.l{text-align:left}td.r{text-align:right}td.c{text-align:center}
+
+/* INLINE EDIT */
+.edit-cell{position:relative}
+.edit-cell input,.edit-cell select{width:100%;border:none;background:transparent;font:inherit;color:inherit;text-align:right;padding:0;outline:none;cursor:pointer}
+.edit-cell input:focus,.edit-cell select:focus{background:#fff;border:2px solid #3182CE;border-radius:4px;padding:1px 4px;box-shadow:0 0 0 2px rgba(49,130,206,.2);z-index:1;position:relative}
+.edit-cell.editing input{background:#FFFBEB;border:2px solid #D97706;border-radius:4px}
+.edit-icon{opacity:0;font-size:9px;color:#90CDF4;margin-left:3px;transition:opacity .15s}
+td:hover .edit-icon{opacity:1}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.tag-new{background:#C6F6D5;color:#276749;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:3px;vertical-align:middle}
+mark{background:#FEF08A;border-radius:2px;padding:0 1px}
+.empty{text-align:center;padding:40px;color:#A0AEC0;font-size:14px}
+.fnote{font-size:11px;color:#A0AEC0;padding:0 16px 16px;line-height:1.6}
+::-webkit-scrollbar{height:6px;width:6px}
+::-webkit-scrollbar-track{background:#F0F4F8}
+::-webkit-scrollbar-thumb{background:#CBD5E0;border-radius:3px}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;background:#276749;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}
+
+/* MODAL upload */
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>📊 Bảng Tổng Hợp Giá Bán — HKD Nhóm 2</h1>
+    <div class="sub">Tổng hợp từ Bảng giá + Phiếu nhập · Tính giá bán tối thiểu không lỗ · Sửa trực tiếp trên bảng</div>
+  </div>
+  <div class="topbar-right">
+    <span id="dataSourceLabel" style="font-size:11px;color:#90CDF4"></span>
+    <button class="btn primary" onclick="document.getElementById('bangGiaInput').click()">📂 Tải Bảng Giá (.xlsx)</button>
+    <button class="btn" onclick="document.getElementById('phieuNhapInput').click()">📋 Tải Phiếu Nhập (.csv)</button>
+    <button class="btn success" onclick="resetToDefault()">🔄 Dữ liệu mẫu</button>
+  </div>
+</div>
+
+<input type="file" id="bangGiaInput" accept=".xlsx,.xls" style="display:none" onchange="loadBangGia(this)"/>
+<input type="file" id="phieuNhapInput" accept=".csv" style="display:none" onchange="loadPhieuNhap(this)"/>
+
+<!-- UPLOAD ZONE (shown when no data) -->
+<div class="upload-zone has-data" id="uploadZone" style="display:none">
+  <div class="upload-icon">📂</div>
+  <div class="upload-text">
+    <p>Kéo thả file vào đây hoặc dùng nút bên trên</p>
+    <small>Bảng giá: .xlsx | Phiếu nhập: .csv — Hệ thống tự ghép dữ liệu</small>
+  </div>
+</div>
+
+<!-- ASSUMPTIONS -->
+<div class="asm-bar">
+  <span style="font-size:12px;font-weight:700;color:#1F4E79">⚙️ Giả định thuế:</span>
+  <div class="asm-item">
+    <label>Thuế HKD</label>
+    <input type="number" id="hkdRate" value="1.5" min="0" max="10" step="0.5" onchange="render()"/>
+    <span>% / DT</span>
+  </div>
+  <div class="asm-item">
+    <label>VAT mặc định</label>
+    <input type="number" id="vatDefault" value="10" min="0" max="30" step="1" onchange="render()"/>
+    <span>%</span>
+  </div>
+  <div class="asm-note">💡 Giá hòa vốn = Giá vốn ÷ (1 − Thuế HKD%) làm tròn lên 500đ · Nhấn vào ô để sửa trực tiếp</div>
+</div>
+
+<!-- SEARCH + ACTIONS -->
+<div class="search-bar">
+  <span style="font-size:16px">🔍</span>
+  <input id="searchInput" type="text" placeholder="Tìm tên hàng, mã hàng... (gõ để tìm ngay)" autocomplete="off"/>
+  <button class="btn" id="btnClear" onclick="clearSearch()" style="display:none">✕ Xóa</button>
+  <span class="search-count" id="resultCount"></span>
+  <div style="margin-left:auto;display:flex;gap:6px">
+    <button class="btn" onclick="exportCSV()">⬇ Xuất CSV</button>
+  </div>
+</div>
+
+<!-- FILTERS -->
+<div class="filters" id="filterBar"></div>
+
+<!-- STATS SUMMARY -->
+<div class="stats-grid" id="statsGrid"></div>
+
+<!-- TABLE -->
+<div class="tbl-wrap">
+  <table id="mainTable">
+    <thead>
+      <tr id="ghRow"></tr>
+      <tr id="chRow"></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div class="fnote" id="fnote"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════════════════
+const SEED = [{"ma":"SP001159","ten":"Cà Phê Sữa VinaCafé ","dvt":"Thùng","nhom":"Cà Phê","ton":0.9,"giaVon":1303704.0,"giaNhapMoi":0,"giaVonThuc":1303704.0,"bangGia":1500000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001158","ten":"Cà Phê Sữa VinaCafé ","dvt":"Bịch","nhom":"Cà Phê","ton":18.0,"giaVon":65185.2,"giaNhapMoi":0,"giaVonThuc":65185.2,"bangGia":75000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001157","ten":"Cà phê Wake Up Sài Gòn ","dvt":"Thùng","nhom":"Cà Phê","ton":1.9,"giaVon":875926.0,"giaNhapMoi":0,"giaVonThuc":875926.0,"bangGia":1000000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001156","ten":"Cà phê Wake Up Sài Gòn ","dvt":"Bịch","nhom":"Cà Phê","ton":38.0,"giaVon":43796.3,"giaNhapMoi":0,"giaVonThuc":43796.3,"bangGia":50000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001155","ten":"Tương ớt Chinsu 500g ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":1.83,"giaVon":310812.0,"giaNhapMoi":0,"giaVonThuc":310812.0,"bangGia":384000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001154","ten":"Tương ớt Chinsu 500g ","dvt":"Lốc","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":3.67,"giaVon":155406.0,"giaNhapMoi":0,"giaVonThuc":155406.0,"bangGia":192000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001153","ten":"Tương ớt Chinsu 500g ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":22.0,"giaVon":25901.0,"giaNhapMoi":0,"giaVonThuc":25901.0,"bangGia":32000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001149","ten":"Nước Tương Tam Thái Tử Nhất Ca 500ml ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":4.92,"giaVon":385759.68,"giaNhapMoi":0,"giaVonThuc":385759.68,"bangGia":480000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001148","ten":"Nước Tương Tam Thái Tử Nhất Ca 500ml ","dvt":"Lốc","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":19.67,"giaVon":96439.92,"giaNhapMoi":0,"giaVonThuc":96439.92,"bangGia":120000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001147","ten":"Nước Tương Tam Thái Tử Nhất Ca 500ml ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":118.0,"giaVon":16073.32,"giaNhapMoi":0,"giaVonThuc":16073.32,"bangGia":20000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001146","ten":"Nước Mắm Nam Ngư Đệ Nhị 900ml ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":69.93,"giaVon":294444.45,"giaNhapMoi":0,"giaVonThuc":294444.45,"bangGia":360000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001145","ten":"Nước Mắm Nam Ngư Đệ Nhị 900ml ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":1049.0,"giaVon":19629.63,"giaNhapMoi":0,"giaVonThuc":19629.63,"bangGia":24000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001144","ten":"Nước tăng lực Rồng Đỏ vị dâu 330ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":47.0,"giaVon":100658.4,"giaNhapMoi":0,"giaVonThuc":100658.4,"bangGia":122000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001143","ten":"Nước tăng lực Rồng Đỏ vị dâu 330ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":1128.0,"giaVon":4194.1,"giaNhapMoi":0,"giaVonThuc":4194.1,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001142","ten":"Trà Xanh C2 vị Chanh 355ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":14.0,"giaVon":117216.48,"giaNhapMoi":0,"giaVonThuc":117216.48,"bangGia":140000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001141","ten":"Trà Xanh C2 vị Chanh 355ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":336.0,"giaVon":4884.02,"giaNhapMoi":0,"giaVonThuc":4884.02,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001140","ten":"Trà Xanh C2 vị Dâu Anh Đào 455ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":4.0,"giaVon":148479.84,"giaNhapMoi":0,"giaVonThuc":148479.84,"bangGia":178000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001139","ten":"Trà Xanh C2 vị Dâu Anh Đào 455ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":96.0,"giaVon":6186.66,"giaNhapMoi":0,"giaVonThuc":6186.66,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001138","ten":"Trà Xanh C2 vị Dưa Lưới Bạc Hà 455ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":9.0,"giaVon":148479.84,"giaNhapMoi":0,"giaVonThuc":148479.84,"bangGia":178000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001137","ten":"Trà Xanh C2 vị Dưa Lưới Bạc Hà 455ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":216.0,"giaVon":6186.66,"giaNhapMoi":0,"giaVonThuc":6186.66,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001136","ten":"Trà Xanh C2 vị Ổi Hồng Chanh Dây 455ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":9.0,"giaVon":148479.84,"giaNhapMoi":0,"giaVonThuc":148479.84,"bangGia":178000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001135","ten":"Trà Xanh C2 vị Ổi Hồng Chanh Dây 455ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":216.0,"giaVon":6186.66,"giaNhapMoi":0,"giaVonThuc":6186.66,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001134","ten":"Lifebuoy dầu gội dưỡng tóc 640g ","dvt":"Chai","nhom":"Chăm Sóc Cá Nhân","ton":5.0,"giaVon":77180.67,"giaNhapMoi":0,"giaVonThuc":77180.67,"bangGia":95000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001133","ten":"Bàn Chải Đánh Răng P/S ","dvt":"Vỉ","nhom":"Chăm Sóc Cá Nhân","ton":11.75,"giaVon":164709.0,"giaNhapMoi":0,"giaVonThuc":164709.0,"bangGia":216000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001132","ten":"Bàn Chải Đánh Răng P/S ","dvt":"Cây","nhom":"Chăm Sóc Cá Nhân","ton":141.0,"giaVon":13725.75,"giaNhapMoi":0,"giaVonThuc":13725.75,"bangGia":18000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001131","ten":"Dầu gội Lifebuoy Dưỡng Tóc Óng Ả ","dvt":"Dây","nhom":"Chăm Sóc Cá Nhân","ton":76.0,"giaVon":6180.88,"giaNhapMoi":0,"giaVonThuc":6180.88,"bangGia":8000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001130","ten":"Bò Húc Redbull Thái 250ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":248.0,"giaVon":63000.0,"giaNhapMoi":0,"giaVonThuc":63000.0,"bangGia":77000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001129","ten":"Bơ Thực Vật Meizan 80g ","dvt":"Hộp","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":6.0,"giaVon":5013.6,"giaNhapMoi":6266.67,"giaVonThuc":6266.67,"bangGia":10000.0,"donGiaNhap":5802.47,"vatTien":4642.0,"soLuongNhap":10.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP001128","ten":"Bơ Thực Vật Meizan 200g ","dvt":"Hộp","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":7.0,"giaVon":10662.72,"giaNhapMoi":0,"giaVonThuc":10662.72,"bangGia":18000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001127","ten":"Dầu đậu nành Simply 2L ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":7.0,"giaVon":98577.22,"giaNhapMoi":120833.34,"giaVonThuc":120833.34,"bangGia":115000.0,"donGiaNhap":111882.72,"vatTien":107407.0,"soLuongNhap":12.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP001126","ten":"Dầu gạo lứt Simply 1L ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":10.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":58000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001125","ten":"Aquafina 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-4.0,"giaVon":76851.84,"giaNhapMoi":83000.0,"giaVonThuc":83000.0,"bangGia":92000.0,"donGiaNhap":76851.85,"vatTien":737778.0,"soLuongNhap":120.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP001124","ten":"Aquafina 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":-96.0,"giaVon":3202.16,"giaNhapMoi":0,"giaVonThuc":3202.16,"bangGia":5000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001123","ten":"Gói Thực phẩm dinh dưỡng Glucerna hương vani 220ml ","dvt":"Gói","nhom":"Sữa","ton":1.0,"giaVon":511175.37,"giaNhapMoi":555500.01,"giaVonThuc":555500.01,"bangGia":0.0,"donGiaNhap":514351.86,"vatTien":77132.0,"soLuongNhap":2.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP001122","ten":"Glucerna Hương Vani 220ml ","dvt":"Lốc","nhom":"Sữa","ton":1.0,"giaVon":278822.94,"giaNhapMoi":0,"giaVonThuc":278822.94,"bangGia":295000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001121","ten":"Glucerna Hương Vani 220ml ","dvt":"Chai","nhom":"Sữa","ton":6.0,"giaVon":46470.49,"giaNhapMoi":0,"giaVonThuc":46470.49,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001120","ten":"Tương ớt Chinsu Chai 250g ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":14.58,"giaVon":327327.36,"giaNhapMoi":0,"giaVonThuc":327327.36,"bangGia":408000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001119","ten":"Tương ớt Chinsu Chai 250g ","dvt":"Lốc","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":43.75,"giaVon":109109.12,"giaNhapMoi":0,"giaVonThuc":109109.12,"bangGia":136000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001118","ten":"Tương ớt Chinsu Chai 250g ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":350.0,"giaVon":13638.64,"giaNhapMoi":0,"giaVonThuc":13638.64,"bangGia":17000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001117","ten":"Nước Tương Tam Thái Tử Nhị Ca ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":24.76,"giaVon":134956.5,"giaNhapMoi":0,"giaVonThuc":134956.5,"bangGia":162000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001116","ten":"Nước Tương Tam Thái Tử Nhị Ca ","dvt":"Lốc","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":103.17,"giaVon":32389.56,"giaNhapMoi":0,"giaVonThuc":32389.56,"bangGia":42000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001115","ten":"Nước Tương Tam Thái Tử Nhị Ca ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":619.0,"giaVon":5398.26,"giaNhapMoi":0,"giaVonThuc":5398.26,"bangGia":8000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001114","ten":"Nước Mắm Nam Ngư 750ml ","dvt":"Thùng","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":14.72,"giaVon":706951.8,"giaNhapMoi":0,"giaVonThuc":706951.8,"bangGia":810000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001113","ten":"Nước Mắm Nam Ngư 750ml ","dvt":"Lốc","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":44.17,"giaVon":235650.6,"giaNhapMoi":0,"giaVonThuc":235650.6,"bangGia":270000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001112","ten":"Nước Mắm Nam Ngư 750ml ","dvt":"Chai","nhom":"Dầu Ăn - Gia Vị - Nước Chấm","ton":265.0,"giaVon":39275.1,"giaNhapMoi":0,"giaVonThuc":39275.1,"bangGia":47000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001111","ten":"Đường Kính Trắng Túi 1Kg ","dvt":"Bao 50Kg","nhom":"Đường","ton":11.8,"giaVon":925000.0,"giaNhapMoi":0,"giaVonThuc":925000.0,"bangGia":1150000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001110","ten":"Đường Kính Trắng Túi 1Kg ","dvt":"Túi 1Kg","nhom":"Đường","ton":590.0,"giaVon":18500.0,"giaNhapMoi":0,"giaVonThuc":18500.0,"bangGia":23000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001109","ten":"Đường Kính Trắng Bao 50kg ","dvt":"Bao 50KG","nhom":"Đường","ton":15.0,"giaVon":776000.0,"giaNhapMoi":0,"giaVonThuc":776000.0,"bangGia":860000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001108","ten":"Đường Kính Trắng Bao 50kg ","dvt":"Bao 1KG","nhom":"Đường","ton":750.0,"giaVon":15520.0,"giaNhapMoi":0,"giaVonThuc":15520.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001107","ten":"Hồng Trà Tea 365 Hương Đào ","dvt":"Thùng","nhom":"Nước Ngọt","ton":19.0,"giaVon":149906.4,"giaNhapMoi":0,"giaVonThuc":149906.4,"bangGia":170000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001106","ten":"Hồng Trà Tea 365 Hương Đào ","dvt":"Lốc","nhom":"Nước Ngọt","ton":76.0,"giaVon":37476.6,"giaNhapMoi":0,"giaVonThuc":37476.6,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001105","ten":"Hồng Trà Tea 365 Hương Đào ","dvt":"Chai","nhom":"Nước Ngọt","ton":456.0,"giaVon":6246.1,"giaNhapMoi":0,"giaVonThuc":6246.1,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001104","ten":"Nước yến nha đam 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":35.0,"giaVon":163605.6,"giaNhapMoi":0,"giaVonThuc":163605.6,"bangGia":190000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001103","ten":"Nước yến nha đam 500ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":140.0,"giaVon":40901.4,"giaNhapMoi":0,"giaVonThuc":40901.4,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001102","ten":"Mì Kokomi đại 90 tôm chua cay ","dvt":"Thùng","nhom":"Mì Tôm","ton":8.0,"giaVon":101851.8,"giaNhapMoi":0,"giaVonThuc":101851.8,"bangGia":115000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001101","ten":"Mì Kokomi đại 90 tôm chua cay ","dvt":"Gói","nhom":"Mì Tôm","ton":240.0,"giaVon":3395.06,"giaNhapMoi":0,"giaVonThuc":3395.06,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001100","ten":"Sữa Ensure Original 237ml ","dvt":"Lốc","nhom":"Sữa","ton":33.0,"giaVon":220883.34,"giaNhapMoi":0,"giaVonThuc":220883.34,"bangGia":250000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001099","ten":"Nước suối number one 500ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":96.75,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":24000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000227","ten":"Pepsi chai nhựa 390ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-20.0,"giaVon":163636.32,"giaNhapMoi":0,"giaVonThuc":163636.32,"bangGia":120000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000226","ten":"Pepsi chai nhựa 390ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-80.0,"giaVon":40909.08,"giaNhapMoi":0,"giaVonThuc":40909.08,"bangGia":45000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000225","ten":"Bánh gạo An vị tảo biển ","dvt":"Thùng","nhom":"Bánh","ton":6.4,"giaVon":277778.0,"giaNhapMoi":0,"giaVonThuc":277778.0,"bangGia":300000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000223","ten":"Bánh gạo An Chà Bông ","dvt":"Gói","nhom":"Bánh, kẹo, snack >> Bánh","ton":89.0,"giaVon":24537.0,"giaNhapMoi":0,"giaVonThuc":24537.0,"bangGia":28000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000224","ten":"Bánh gạo An Chà Bông ","dvt":"Thùng","nhom":"Bánh, kẹo, snack >> Bánh","ton":8.9,"giaVon":245370.0,"giaNhapMoi":0,"giaVonThuc":245370.0,"bangGia":280000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000222","ten":"Bánh quy Magic ","dvt":"Thùng","nhom":"Bánh","ton":1.75,"giaVon":353718.56,"giaNhapMoi":0,"giaVonThuc":353718.56,"bangGia":480000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000221","ten":"Kẹo Sôcôla Bạc Hà Dynamite 112.5g x 36 ","dvt":"Thùng","nhom":"Bánh, kẹo, snack","ton":0.33,"giaVon":359130.6,"giaNhapMoi":0,"giaVonThuc":359130.6,"bangGia":540000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000220","ten":"Kẹo Sôcôla Bạc Hà Dynamite 112.5g x 36 ","dvt":"Gói","nhom":"Bánh, kẹo, snack","ton":12.0,"giaVon":9975.85,"giaNhapMoi":0,"giaVonThuc":9975.85,"bangGia":15000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000219","ten":"Cà Phê Phố ","dvt":"Hộp","nhom":"Cà Phê","ton":86.0,"giaVon":39814.81,"giaNhapMoi":0,"giaVonThuc":39814.81,"bangGia":45000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000218","ten":"Cà phê Trung Nguyên I 500g ","dvt":"Gói","nhom":"Cà Phê","ton":-60.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000217","ten":"Cà phê Trung Nguyên S 500g ","dvt":"Gói","nhom":"Cà Phê","ton":-5.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":70000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000216","ten":"Aquafina 5 Lít ","dvt":"Thùng","nhom":"Nước Ngọt","ton":23.25,"giaVon":83333.32,"giaNhapMoi":0,"giaVonThuc":83333.32,"bangGia":100000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000215","ten":"Aquafina 5 Lít ","dvt":"Chai","nhom":"Nước Ngọt","ton":93.0,"giaVon":20833.33,"giaNhapMoi":0,"giaVonThuc":20833.33,"bangGia":25000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000214","ten":"Revive chanh muối chai 390ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.33,"giaVon":133636.32,"giaNhapMoi":0,"giaVonThuc":133636.32,"bangGia":150000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000213","ten":"Revive chanh muối chai 390ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":1.33,"giaVon":33409.08,"giaNhapMoi":0,"giaVonThuc":33409.08,"bangGia":60000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000212","ten":"Revive chanh muối chai 390ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":8.0,"giaVon":5568.18,"giaNhapMoi":0,"giaVonThuc":5568.18,"bangGia":10000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000209","ten":"Pocari Sweat 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":101.0,"giaVon":260401.44,"giaNhapMoi":0,"giaVonThuc":260401.44,"bangGia":310000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000208","ten":"Pocari Sweat 500ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":404.0,"giaVon":65100.36,"giaNhapMoi":0,"giaVonThuc":65100.36,"bangGia":84000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000207","ten":"Pocari Sweat 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":2424.0,"giaVon":10850.06,"giaNhapMoi":11364.0,"giaVonThuc":11364.0,"bangGia":14000.0,"donGiaNhap":11364.0,"vatTien":0,"soLuongNhap":360.0,"vatPct":0,"coPhieuNhap":true},{"ma":"SP000206","ten":"7 Up chanh chai 390ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-7.29,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000205","ten":"7 Up chanh chai 390ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-29.17,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000204","ten":"7 Up chanh chai 390ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":-175.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":120000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000203","ten":"Mì Cung Đình vị lẩu tôm chua cay ","dvt":"Thùng","nhom":"Mì Tôm","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000202","ten":"Mì Cung Đình vị lẩu tôm chua cay ","dvt":"Ly","nhom":"Mì Tôm","ton":-24.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000201","ten":"Bánh quy Cream kem vanilla ","dvt":"Gói","nhom":"Bánh","ton":-42.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000200","ten":"Bánh blasto ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000199","ten":"Bánh Nabati chocolate gói nhỏ ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000198","ten":"Bánh Xốp phô mai Cal chesse ","dvt":"Gói","nhom":"Bánh","ton":-135000.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000197","ten":"Bánh cest Bon sợi thịt gà sốt kem phô ","dvt":"Gói","nhom":"Bánh","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000196","ten":"Bánh tươi Karo ","dvt":"Gói","nhom":"Bánh","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000195","ten":"Bánh Akiko snack que nhân sữa ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000194","ten":"Bánh Orion bống bang ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000193","ten":"Bán quế go choco rollz ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000192","ten":"Bánh malkist cream Cracker ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000191","ten":"Bánh xốp socola superstar ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000190","ten":"Bánh quy Magic ","dvt":"Hộp","nhom":"Bánh","ton":28.0,"giaVon":22107.41,"giaNhapMoi":0,"giaVonThuc":22107.41,"bangGia":30000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000189","ten":"Bánh kem Xốp phô mai Nabati ","dvt":"Hộp","nhom":"Bánh","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000188","ten":"Bánh AFC vị rau ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000187","ten":"Bánh quế Cosy vị dứa ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000186","ten":"Bánh quế Cosy vị dâu ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000185","ten":"Banh quế Cosy vị xoài xí muội ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000184","ten":"Bánh quy Cosy Marie bịch 20 gói ","dvt":"Bịch","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000183","ten":"Bánh quy Cosy Marie gói lớn ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934680113878","ten":"Bánh quy Cosy Marie gói dài ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000182","ten":"Bánh Solite vị dâu ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000181","ten":"Bánh Solite vị lá dứa ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000180","ten":"Bánh gạo One One vị phô mai ngô ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000179","ten":"Bánh gạo One One vị ngọt dịu ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000178","ten":"Bánh gạo One One vị bò nướng ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000177","ten":"Bánh gạo nướng Haku vị mè rang ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000176","ten":"Bánh gạo Okome vị tảo biển ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000175","ten":"Bánh gạo Ichi vị mật ong ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000174","ten":"Bánh gạo An vị tự nhiên ","dvt":"Gói","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000173","ten":"Bánh gạo An vị tảo biển ","dvt":"Gói","nhom":"Bánh","ton":128.0,"giaVon":13888.9,"giaNhapMoi":0,"giaVonThuc":13888.9,"bangGia":15000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000172","ten":"Bánh Chocopie hộp 6 cái ","dvt":"Hộp","nhom":"Bánh","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000171","ten":"Bánh Chocopie hộp 12 cái ","dvt":"Hộp","nhom":"Bánh","ton":-8.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000170","ten":"Bánh trứng Custas Orion 12 cái ","dvt":"Hộp","nhom":"Bánh","ton":-3.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000169","ten":"Bánh Custas 6 cái ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000168","ten":"Bánh Goute mè 4 gói ","dvt":"Hộp","nhom":"Bánh","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":25000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000167","ten":"Bánh Goute mè 10 gói ","dvt":"Hộp","nhom":"Bánh","ton":-3.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":45000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000166","ten":"Miến Phú Hương sườn heo ","dvt":"Thùng","nhom":"Mì Tôm","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":240000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000165","ten":"Miến Phú Hương sườn heo ","dvt":"Gói","nhom":"Mì Tôm","ton":-48.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000164","ten":"Mỳ Ba Miền tôm chua cay ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000163","ten":"Mì Gấu Đỏ gà sợi phở ","dvt":"Thùng","nhom":"Mì Tôm","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000162","ten":"Mì Cung Đình Kool ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000161","ten":"Mì Cung Đình Kool ","dvt":"Tô","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000160","ten":"Cháo thịt bằm Gấu Đỏ ","dvt":"Thùng","nhom":"Mì Tôm","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000159","ten":"Cháo thịt bằm Gấu Đỏ ","dvt":"Gói","nhom":"Mì Tôm","ton":-100.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000158","ten":"Mì Gấu Đỏ chay rau nấm ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000157","ten":"Mì Gấu Đỏ chay rau nấm ","dvt":"Gói","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000156","ten":"Mì Gấu Đỏ tôm và gà ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000155","ten":"Mì Gấu Đỏ tôm và gà ","dvt":"Gói","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000154","ten":"Mì giấy Miliket ","dvt":"Thùng","nhom":"Mì Tôm","ton":-6.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000153","ten":"Mì giấy Miliket ","dvt":"Gói","nhom":"Mì Tôm","ton":-180.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000152","ten":"Phở bò Vifon ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000151","ten":"Phở bò Vifon ","dvt":"Gói","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000150","ten":"Mì A one thịt xào ","dvt":"Thùng","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000149","ten":"Mì A one thịt xào ","dvt":"Gói","nhom":"Mì Tôm","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000148","ten":"Mì hải sản Siukay ","dvt":"Thùng","nhom":"Mì Tôm","ton":3.0,"giaVon":236111.04,"giaNhapMoi":0,"giaVonThuc":236111.04,"bangGia":270000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000147","ten":"Mì hải sản Siukay ","dvt":"Gói","nhom":"Mì Tôm","ton":72.0,"giaVon":9837.96,"giaNhapMoi":0,"giaVonThuc":9837.96,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000145","ten":"Hủ tiếu nam vang ","dvt":"Thùng","nhom":"Mì Tôm","ton":18.0,"giaVon":211049.4,"giaNhapMoi":0,"giaVonThuc":211049.4,"bangGia":240000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000144","ten":"Hủ tiếu nam vang ","dvt":"Gói","nhom":"Mì Tôm","ton":540.0,"giaVon":7034.98,"giaNhapMoi":0,"giaVonThuc":7034.98,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000143","ten":"Bún giò heo ","dvt":"Thùng","nhom":"Mì Tôm","ton":4.0,"giaVon":212259.3,"giaNhapMoi":0,"giaVonThuc":212259.3,"bangGia":240000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000142","ten":"Bún giò heo ","dvt":"Gói","nhom":"Mì Tôm","ton":120.0,"giaVon":7075.31,"giaNhapMoi":0,"giaVonThuc":7075.31,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000140","ten":"Miến Phú Hương thịt bằm ","dvt":"Thùng","nhom":"Mì Tôm","ton":1.0,"giaVon":210081.36,"giaNhapMoi":0,"giaVonThuc":210081.36,"bangGia":240000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000139","ten":"Miến Phú Hương thịt bằm ","dvt":"Gói","nhom":"Mì Tôm","ton":24.0,"giaVon":8753.39,"giaNhapMoi":0,"giaVonThuc":8753.39,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000138","ten":"Mì Đệ Nhất thịt bằm ","dvt":"Thùng","nhom":"Mì Tôm","ton":18.0,"giaVon":181481.4,"giaNhapMoi":0,"giaVonThuc":181481.4,"bangGia":208000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000137","ten":"Mì Đệ Nhất thịt bằm ","dvt":"Gói","nhom":"Mì Tôm","ton":540.0,"giaVon":6049.38,"giaNhapMoi":0,"giaVonThuc":6049.38,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000136","ten":"Mì ly Modern lẩu Thái tôm ","dvt":"Thùng","nhom":"Mì Tôm","ton":26.0,"giaVon":153923.52,"giaNhapMoi":0,"giaVonThuc":153923.52,"bangGia":175000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000135","ten":"Mì ly Modern lẩu Thái tôm ","dvt":"Ly","nhom":"Mì Tôm","ton":624.0,"giaVon":6413.48,"giaNhapMoi":0,"giaVonThuc":6413.48,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000134","ten":"Mì lẩu thái tôm ","dvt":"Thùng","nhom":"Mì Tôm","ton":16.0,"giaVon":181481.4,"giaNhapMoi":0,"giaVonThuc":181481.4,"bangGia":208000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000133","ten":"Mì lẩu thái tôm ","dvt":"Gói","nhom":"Mì Tôm","ton":480.0,"giaVon":6049.38,"giaNhapMoi":0,"giaVonThuc":6049.38,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000132","ten":"Mì Hảo Hảo xào tôm chua ngọt ","dvt":"Thùng","nhom":"Mì Tôm","ton":4.0,"giaVon":101388.9,"giaNhapMoi":0,"giaVonThuc":101388.9,"bangGia":117000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000131","ten":"Mì Hảo Hảo xào tôm chua ngọt ","dvt":"Gói","nhom":"Mì Tôm","ton":120.0,"giaVon":3379.63,"giaNhapMoi":0,"giaVonThuc":3379.63,"bangGia":4000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000130","ten":"Mì ly Hảo Hảo ","dvt":"Thùng","nhom":"Mì Tôm","ton":5.0,"giaVon":175000.08,"giaNhapMoi":0,"giaVonThuc":175000.08,"bangGia":203000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000129","ten":"Mì ly Hảo Hảo ","dvt":"Ly","nhom":"Mì Tôm","ton":120.0,"giaVon":7291.67,"giaNhapMoi":0,"giaVonThuc":7291.67,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000128","ten":"Mì Hảo Hảo tôm chua cay ","dvt":"Thùng","nhom":"Mì Tôm","ton":169.97,"giaVon":101926.8,"giaNhapMoi":0,"giaVonThuc":101926.8,"bangGia":117000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000127","ten":"Mì Hảo Hảo tôm chua cay ","dvt":"Gói","nhom":"Mì Tôm","ton":5099.0,"giaVon":3397.56,"giaNhapMoi":0,"giaVonThuc":3397.56,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000126","ten":"Omachi xốt Spaghetti ","dvt":"Thùng","nhom":"Mì Tôm","ton":8.0,"giaVon":208333.2,"giaNhapMoi":0,"giaVonThuc":208333.2,"bangGia":234000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000125","ten":"Omachi xốt Spaghetti ","dvt":"Gói","nhom":"Mì Tôm","ton":240.0,"giaVon":6944.44,"giaNhapMoi":0,"giaVonThuc":6944.44,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000124","ten":"Mì Omachi lẩu tôm càng ","dvt":"Thùng","nhom":"Mì Tôm","ton":1.0,"giaVon":194444.4,"giaNhapMoi":0,"giaVonThuc":194444.4,"bangGia":215000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000123","ten":"Mì Omachi lẩu tôm càng ","dvt":"Gói","nhom":"Mì Tôm","ton":30.0,"giaVon":6481.48,"giaNhapMoi":0,"giaVonThuc":6481.48,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000122","ten":"Mì Omachi Sườn ","dvt":"Thùng","nhom":"Mì Tôm","ton":5.0,"giaVon":194444.4,"giaNhapMoi":0,"giaVonThuc":194444.4,"bangGia":215000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000121","ten":"Mì Omachi Sườn ","dvt":"Gói","nhom":"Mì Tôm","ton":150.0,"giaVon":6481.48,"giaNhapMoi":0,"giaVonThuc":6481.48,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000120","ten":"Mì Omachi Bò Hầm ","dvt":"Thùng","nhom":"Mì Tôm","ton":5.0,"giaVon":194444.4,"giaNhapMoi":0,"giaVonThuc":194444.4,"bangGia":215000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000119","ten":"Mì Omachi Bò Hầm ","dvt":"Gói","nhom":"Mì Tôm","ton":150.0,"giaVon":6481.48,"giaNhapMoi":0,"giaVonThuc":6481.48,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000118","ten":"Sữa Nutri cam 297ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-3.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000117","ten":"Sữa Nutri cam 297ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-12.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000116","ten":"Sữa Nutri Dâu 297ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000115","ten":"Sữa Nutri Dâu 297ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-4.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000114","ten":"Nước tăng lực Redbull Việt 250ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-4.5,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000113","ten":"Nước tăng lực Redbull Việt 250ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-18.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000112","ten":"Nước tăng lực Redbull Việt 250ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":-108.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000111","ten":"Coca chai 600ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000110","ten":"Coca chai 600ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000109","ten":"Nước tăng lực Warrior nho lon 325ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000108","ten":"Nước tăng lực Warrior nho lon 325ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000106","ten":"Nước yến nha đam 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":840.0,"giaVon":6816.9,"giaNhapMoi":0,"giaVonThuc":6816.9,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000105","ten":"TRà bí đao Wonderfarm lon 310ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":100.0,"giaVon":32030.58,"giaNhapMoi":0,"giaVonThuc":32030.58,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000104","ten":"Trà bí đao Wonderfarm chai 440ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":16.0,"giaVon":138725.6,"giaNhapMoi":0,"giaVonThuc":138725.6,"bangGia":148000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000103","ten":"Trà bí đao Wonderfarm chai 440ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":64.0,"giaVon":34681.4,"giaNhapMoi":0,"giaVonThuc":34681.4,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000102","ten":"Trà bí đao Wonderfarm chai 280ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000101","ten":"Trà bí đao Wonderfarm chai 280ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000100","ten":"Nước Soda Schweppes 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000099","ten":"Nước Soda Schweppes 320ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000098","ten":"TRà Ô Long Tea Plus 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000097","ten":"TRà Ô Long Tea Plus 320ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-8.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000096","ten":"Mirinda hương cam 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000095","ten":"Mirinda hương cam 320ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-4.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000094","ten":"Nước tăng lực Rockstar lon 250ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000093","ten":"Nước tăng lực Rockstar lon 250ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000092","ten":"Sữa đậu nành Tribeco lon 240ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000091","ten":"Sữa đậu nành Tribeco lon 240ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000090","ten":"Sữa đậu nành Number One chai 268ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000089","ten":"Sữa đậu nành Number One chai 268ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000088","ten":"Trà Dr Thanh 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000087","ten":"Trà Dr Thanh 500ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000086","ten":"Trà Dr Thanh 330ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000085","ten":"Trà Dr Thanh 330ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000084","ten":"Yến Sào Sanest quai sách có đường ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000083","ten":"Yến Sào Sanest Hộp Quà có đường ","dvt":"Hộp","nhom":"Nước Ngọt","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000082","ten":"Yến Sào Sanest có đường 70ml ","dvt":"Hộp","nhom":"Nước Ngọt","ton":-5.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000081","ten":"Yến Sào Sanest Kid 62ml ","dvt":"Hộp","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000080","ten":"Yến Sanet lon 190ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-3.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000079","ten":"Yến Sanet lon 190ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-15.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000078","ten":"Trà xanh không độ ","dvt":"Thùng","nhom":"Nước Ngọt","ton":114.0,"giaVon":168657.84,"giaNhapMoi":168181.82,"giaVonThuc":168181.82,"bangGia":180000.0,"donGiaNhap":168181.82,"vatTien":0,"soLuongNhap":50.0,"vatPct":0,"coPhieuNhap":true},{"ma":"SP000077","ten":"Trà xanh không độ ","dvt":"Chai","nhom":"Nước Ngọt","ton":2736.0,"giaVon":7027.41,"giaNhapMoi":0,"giaVonThuc":7027.41,"bangGia":10000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000076","ten":"Nước tăng lực NUMBER1 330ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":108.92,"giaVon":179241.84,"giaNhapMoi":195192.31,"giaVonThuc":195192.31,"bangGia":190000.0,"donGiaNhap":177447.55,"vatTien":922727.0,"soLuongNhap":52.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP000075","ten":"Nước tăng lực NUMBER1 330ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":2614.0,"giaVon":7468.41,"giaNhapMoi":0,"giaVonThuc":7468.41,"bangGia":10000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000074","ten":"Aquafina 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":1.0,"giaVon":76851.84,"giaNhapMoi":0,"giaVonThuc":76851.84,"bangGia":90000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000073","ten":"Aquafina 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":24.0,"giaVon":3202.16,"giaNhapMoi":0,"giaVonThuc":3202.16,"bangGia":5000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000072","ten":"Sting dâu chai 330ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-3.25,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000071","ten":"Sting dâu chai 330ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-13.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000070","ten":"Sting dâu chai 330ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":-78.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000069","ten":"Sting dâu lon 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-5.04,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000068","ten":"Sting dâu lon 320ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-20.17,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000067","ten":"Sting dâu lon 320ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":-121.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934588870552-2","ten":"Tra Olong Tea Plus 450ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934588870552-1","ten":"Tra Olong Tea Plus 450ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934588870552","ten":"Tra Olong Tea Plus 450ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000066","ten":"Revive Trắng chai 500ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000065","ten":"Revive Trắng chai 500ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-4.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000064","ten":"Revive Trắng chai 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":-24.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000063","ten":"Nước cam ép Twister 450ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000062","ten":"Nước cam ép Twister 450ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000061","ten":"Pepsi lon 320ml ","dvt":"Lốc","nhom":"Nước Ngọt","ton":-21.5,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000060","ten":"Pepsi lon 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-5.38,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000059","ten":"Pepsi lon 320ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":-129.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":175000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000058","ten":"Coca lon 320ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-13.13,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000057","ten":"Coca lon 320ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":-315.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000056","ten":"Coca chai 390ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000055","ten":"Coca chai 390ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000054","ten":"Trà Xanh C2 vị đào 455ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-1.08,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":178000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000053","ten":"Trà Xanh C2 vị đào 455ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":-26.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000052","ten":"Trà Xanh C2 vị chanh 455ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":41.0,"giaVon":151572.96,"giaNhapMoi":0,"giaVonThuc":151572.96,"bangGia":178000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000051","ten":"Trà Xanh C2 vị chanh 455ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":984.0,"giaVon":6315.54,"giaNhapMoi":0,"giaVonThuc":6315.54,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000050","ten":"Sting Thái tăng lực Warrior 325ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000049","ten":"Sting Thái tăng lực Warrior 325ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000048","ten":"Sá xị Chương Dương ","dvt":"Thùng","nhom":"Nước Ngọt","ton":-4.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000047","ten":"Sá xị Chương Dương ","dvt":"Lon","nhom":"Nước Ngọt","ton":-96.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000046","ten":"Wake Up 247 ","dvt":"Thùng","nhom":"Nước Ngọt","ton":273.75,"giaVon":164228.16,"giaNhapMoi":0,"giaVonThuc":164228.16,"bangGia":190000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000045","ten":"Wake Up 247 ","dvt":"Chai","nhom":"Nước Ngọt","ton":6570.0,"giaVon":6842.84,"giaNhapMoi":0,"giaVonThuc":6842.84,"bangGia":10000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000044","ten":"TRà bí đao Wonderfarm lon 310ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":25.0,"giaVon":128122.32,"giaNhapMoi":0,"giaVonThuc":128122.32,"bangGia":148000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000043","ten":"Bò Húc Redbull Thái 250ml ","dvt":"Thùng","nhom":"Nước Ngọt","ton":62.0,"giaVon":252000.0,"giaNhapMoi":0,"giaVonThuc":252000.0,"bangGia":300000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000042","ten":"Bò Húc Redbull Thái 250ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":1488.0,"giaVon":10500.0,"giaNhapMoi":0,"giaVonThuc":10500.0,"bangGia":14000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000041","ten":"TRà bí đao Wonderfarm lon 310ml ","dvt":"Lon","nhom":"Nước Ngọt","ton":600.0,"giaVon":5338.43,"giaNhapMoi":0,"giaVonThuc":5338.43,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000040","ten":"Bia Red Ruby 24 lon cao 330ml ","dvt":"Thùng","nhom":"Bia","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000039","ten":"Bia Việt 24 lon cao 330ml ","dvt":"Thùng","nhom":"Bia","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000038","ten":"Bia Tiger bạc lon thấp 250ml ","dvt":"Thùng","nhom":"Bia","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000037","ten":"Bia Heineken bạc 24 lon thấp 250ml ","dvt":"Thùng","nhom":"Bia","ton":24.0,"giaVon":336363.64,"giaNhapMoi":0,"giaVonThuc":336363.64,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000036","ten":"Bia Heineken bạc lon cao 330ml ","dvt":"Thùng","nhom":"Bia","ton":-56.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000035","ten":"Bia Tiger Crystal lon cao 330ml ","dvt":"Thùng","nhom":"Bia","ton":-2.38,"giaVon":359090.88,"giaNhapMoi":0,"giaVonThuc":359090.88,"bangGia":410000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000034","ten":"Bia Tiger Crystal lon cao 330ml ","dvt":"Lon","nhom":"Bia","ton":-57.0,"giaVon":14962.12,"giaNhapMoi":0,"giaVonThuc":14962.12,"bangGia":18000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000033","ten":"Bia Tiger lon cao 330ml ","dvt":"Thùng","nhom":"Bia","ton":25.0,"giaVon":312854.64,"giaNhapMoi":0,"giaVonThuc":312854.64,"bangGia":370000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000032","ten":"Bia Tiger lon cao 330ml ","dvt":"Lon","nhom":"Bia","ton":600.0,"giaVon":13035.61,"giaNhapMoi":0,"giaVonThuc":13035.61,"bangGia":16000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000031","ten":"Bia 333 lon 330ml ","dvt":"Thùng","nhom":"Bia","ton":0.0,"giaVon":0.0,"giaNhapMoi":264000.0,"giaVonThuc":264000.0,"bangGia":0.0,"donGiaNhap":240000.0,"vatTien":720000.0,"soLuongNhap":30.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP000030","ten":"Bia 333 lon 330ml ","dvt":"Lon","nhom":"Bia","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000029","ten":"Bia Sài Gòn Lager lon 330ml ","dvt":"Thùng","nhom":"Bia","ton":-19.21,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000028","ten":"Bia Sài Gòn Lager lon 330ml ","dvt":"Lon","nhom":"Bia","ton":-461.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000027","ten":"Sữa Dairy Champ có đường 1Kg ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000026","ten":"Sữa Dairy Champ có đường 500g ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000025","ten":"Sữa Dairy Champ có đường 500g ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000024","ten":"Sữa Glucerna 220ml ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000023","ten":"Sữa Nestle Milo lúa mạch hộp 180ml ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000022","ten":"Sữa Nestle Milo lúa mạch hộp 180ml ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000021","ten":"Sữa Anlene Hương vani 4 hộp x 110ml ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000020","ten":"Sữa đậu nành Fami bịch 200ml ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000019","ten":"Sữa đậu nành Fami hộp 200ml ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000018","ten":"Sữa đậu nành Fami hộp 200ml ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"070074118659","ten":"Sữa Ensure Original 237ml ","dvt":"Chai","nhom":"Sữa","ton":198.0,"giaVon":36813.89,"giaNhapMoi":40000.0,"giaVonThuc":40000.0,"bangGia":40000.0,"donGiaNhap":37037.04,"vatTien":16662.0,"soLuongNhap":6.0,"vatPct":10,"coPhieuNhap":true},{"ma":"SP000017","ten":"Phô mai Con Bò Cười 120g 8 miếng ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000016","ten":"Sữa đậu nành Fami bịch 200ml ","dvt":"Bịch","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000015","ten":"Sữa đặc Vinamilk tài lộc giấy 1.284 kg ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000014","ten":"Sữa đặc Ông Thọ Vỉ 40g ","dvt":"Vỉ","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000013","ten":"Sữa đặc ngôi sao phương nam giấy 1,284kg ","dvt":"Hôp","nhom":"Sữa","ton":-4.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000012","ten":"Sữa đặc ngôi sao phương nam giấy 380g ","dvt":"Hộp","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000011","ten":"Sữa Ông Thọ 380g ","dvt":"Lon","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000010","ten":"Sữa đặc Ngôi Sao Phương Nam Xanh 380g ","dvt":"Lon","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841861112-1","ten":"Sữa Fristi 80ml hương nho ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841861112","ten":"Sữa Fristi 80ml hương nho ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841901207-1","ten":"Sữa Fristi 80ml hương táo ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841901207","ten":"Sữa Fristi 80ml hương táo ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673300513-1","ten":"Sữa Susu 80ml hương dâu ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673300513","ten":"Sữa Susu 80ml hương dâu ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673300483-1","ten":"Sữa Susu 80ml hương cam ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673300483","ten":"Sữa Susu 80ml hương cam ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8936025773174-1","ten":"Sữa Kun trái cây 180ml hương dâu ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8936025773174","ten":"Sữa Kun trái cây 180ml hương dâu ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841900293-1","ten":"Sữa Yomost 180ml hương dâu ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841900293","ten":"Sữa Yomost 180ml hương dâu ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000009","ten":"Sữa Yomost 180ml hương cam ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000008","ten":"Sữa Yomost 180ml hương cam ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8935217400027-1","ten":"Sữa TH Truemilk 1L ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8935217400027","ten":"Sữa TH Truemilk 1L ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000007","ten":"Sữa Cô Gái Hà Lan 180ml có đường ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000006","ten":"Sữa Cô Gái Hà Lan 180ml có đường ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841901863-1","ten":"Sữa Cô Gái Hà Lan 180ml hương dâu ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841901863","ten":"Sữa Cô Gái Hà Lan 180ml hương dâu ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000005","ten":"Sữa tươi TH Truemilk 110ml ít đường ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":120000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP_001","ten":"Sữa tươi TH Truemilk 110ml ít đường ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":10000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000003","ten":"Sữa tươi TH Truemilk 180ml ít đường ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8935217400355","ten":"Sữa tươi TH Truemilk 180ml ít đường ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8935217400157-1","ten":"Sữa tươi TH Truemilk 180ml có đường ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8935217400157","ten":"Sữa tươi TH Truemilk 180ml có đường ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841900286-1","ten":"Yomost cam 180ml ","dvt":"Thùng","nhom":"Sữa","ton":-0.25,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934841900286","ten":"Yomost cam 180ml ","dvt":"Lốc","nhom":"Sữa","ton":-3.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":1000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673601825-1","ten":"Sữa chua Vinamilk nha đam hộp 100g ","dvt":"Thùng","nhom":"Sữa","ton":-0.17,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673601825","ten":"Sữa chua Vinamilk nha đam hộp 100g ","dvt":"Lốc","nhom":"Sữa","ton":-2.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673605823-1","ten":"Sữa chua Vinamilk hộp 100g (không đường) ","dvt":"Thùng","nhom":"Sữa","ton":-0.08,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673605823","ten":"Sữa chua Vinamilk hộp 100g (không đường) ","dvt":"Lốc","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673606820-1","ten":"Sữa chua Vinamilk hộp 100g (có đường) ","dvt":"Thùng","nhom":"Sữa","ton":-0.58,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673606820","ten":"Sữa chua Vinamilk hộp 100g (có đường) ","dvt":"Lốc","nhom":"Sữa","ton":-7.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673576390-1","ten":"Sữa tươi Vinamilk 1 Lít (không đường) ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673576390","ten":"Sữa tươi Vinamilk 1 Lít (không đường) ","dvt":"Hộp","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673573399-1","ten":"Sữa tươi Vinamilk 1 Lít (có đường) ","dvt":"Thùng","nhom":"Sữa","ton":-0.08,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673573399","ten":"Sữa tươi Vinamilk 1 Lít (có đường) ","dvt":"Hộp","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673501354-1","ten":"Sữa tươi Vinamilk 220ml (không đường) ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673501354","ten":"Sữa tươi Vinamilk 220ml (không đường) ","dvt":"Bịch","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673132343-1","ten":"Sữa tươi Vinamilk 220ml (it đường) ","dvt":"Thùng","nhom":"Sữa","ton":-0.02,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673132343","ten":"Sữa tươi Vinamilk 220ml (it đường) ","dvt":"Bịch","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673500357-1","ten":"Sữa tươi Vinamilk 220ml (có đường) ","dvt":"Thùng","nhom":"Sữa","ton":-0.69,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673500357","ten":"Sữa tươi Vinamilk 220ml (có đường) ","dvt":"Bịch","nhom":"Sữa","ton":-33.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP000001","ten":"Sữa tươi Vinamilk 110ml (có đường) ","dvt":"Thùng","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"1121002613661","ten":"Sữa tươi Vinamilk 110ml (có đường) ","dvt":"Lốc","nhom":"Sữa","ton":0.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673581349-1","ten":"Sữa tươi Vinamilk 180ml (ít đường) ","dvt":"Thùng","nhom":"Sữa","ton":-1.08,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673581349","ten":"Sữa tươi Vinamilk 180ml (ít đường) ","dvt":"Lốc","nhom":"Sữa","ton":-13.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673573344-1","ten":"Sữa tươi Vinamilk 180ml (có đường) ","dvt":"Thùng","nhom":"Sữa","ton":-1.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":0.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"8934673573344","ten":"Sữa tươi Vinamilk 180ml (có đường) ","dvt":"Lốc","nhom":"Sữa","ton":-12.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":360000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP0001098","ten":"Nước suối number one 500ml ","dvt":"Chai","nhom":"Nước Ngọt","ton":1161.0,"giaVon":0.0,"giaNhapMoi":0,"giaVonThuc":0.0,"bangGia":5000.0,"donGiaNhap":0,"vatTien":0,"soLuongNhap":0,"vatPct":0,"coPhieuNhap":false},{"ma":"SP001160","ten":"(chưa có trong bảng giá)","dvt":"","nhom":"","ton":0,"giaVon":0,"giaNhapMoi":905000.0,"giaVonThuc":905000.0,"bangGia":0,"donGiaNhap":837962.96,"vatTien":62831.0,"soLuongNhap":1.0,"vatPct":8,"coPhieuNhap":true},{"ma":"SP001161","ten":"(chưa có trong bảng giá)","dvt":"","nhom":"","ton":0,"giaVon":0,"giaNhapMoi":422000.0,"giaVonThuc":422000.0,"bangGia":0,"donGiaNhap":390740.74,"vatTien":29298.0,"soLuongNhap":1.0,"vatPct":8,"coPhieuNhap":true}];
+
+let DATA = JSON.parse(JSON.stringify(SEED));    // working copy
+let EDITS = {};                                  // {id: {field: value}}
+let nhapMap = {};                                // from CSV upload
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+const fmt   = n => (n==null||isNaN(n)||n===0)?'—':Math.round(n).toLocaleString('vi-VN');
+const fmtZ  = n => Math.round(n||0).toLocaleString('vi-VN');
+const fmtP  = n => n==null?'—':(n*100).toFixed(1)+'%';
+const c5    = n => Math.ceil(n/500)*500;
+const pnum  = s => parseFloat(String(s||'').replace(/,/g,''))||0;
+const toast = (msg,ms=2000) => { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),ms); };
+const hl    = (text,q) => { if(!q)return text; return text.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark>$1</mark>'); };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPUTE ONE ROW
+// ═══════════════════════════════════════════════════════════════════════════
+function compute(r) {
+  const hkd    = parseFloat(document.getElementById('hkdRate').value||1.5)/100;
+  const vatDef = parseFloat(document.getElementById('vatDefault').value||10);
+  const ed     = EDITS[r.id] || {};
+
+  const giaBan  = pnum(ed.giaBan  ?? r.bangGia  ?? 0);
+  const vatPct  = pnum(ed.vatPct  ?? (r.vatPct > 0 ? r.vatPct : 0));
+  const gvThuc  = pnum(ed.gvThuc  ?? r.giaVonThuc ?? r.giaVon ?? 0);
+
+  const vatAn      = vatPct > 0 ? gvThuc * vatPct / (100 + vatPct) : 0;
+  const giaChuaVat = gvThuc - vatAn;
+  const thueHKD    = giaBan * hkd;
+  const dtSau      = giaBan * (1 - hkd);
+  const ln         = gvThuc>0 && giaBan>0 ? dtSau - gvThuc : null;
+  const pGV        = gvThuc>0 && giaBan>0 && ln!=null ? ln/gvThuc : null;
+  const hvMin      = gvThuc>0 ? c5(gvThuc/(1-hkd)) : 0;
+  const chLech     = gvThuc>0 && giaBan>0 ? giaBan - hvMin : null;
+
+  let trang = gvThuc===0?'nd': giaBan===0?'np': ln>0?'profit': ln===0?'break':'loss';
+
+  return {...r, giaBan, vatPct, gvThuc, vatAn, giaChuaVat, thueHKD, dtSau, ln, pGV, hvMin, chLech, trang};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let q='', activeNhom='Tất cả', sortKey=null, sortDir=1;
+
+function getRows() {
+  let rows = DATA.map((r,i) => compute({...r, id:i}));
+  if (activeNhom !== 'Tất cả') rows = rows.filter(r => r.nhom===activeNhom);
+  if (q) { const lq=q.toLowerCase(); rows=rows.filter(r=>r.ten.toLowerCase().includes(lq)||r.ma.toLowerCase().includes(lq)); }
+  if (sortKey) rows.sort((a,b)=>{ const va=a[sortKey],vb=b[sortKey]; if(va==null)return 1;if(vb==null)return -1; return (va<vb?-1:va>vb?1:0)*sortDir; });
+  return rows;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NHÓM LIST
+// ═══════════════════════════════════════════════════════════════════════════
+function getNhoms() {
+  const s = new Set(DATA.map(r=>r.nhom).filter(n=>n&&n!=='nan'));
+  return ['Tất cả',...Array.from(s).sort()];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GROUP HEADERS
+// ═══════════════════════════════════════════════════════════════════════════
+const GROUPS = [
+  {label:'Thông tin',bg:'#1F4E79',span:5},
+  {label:'Giá vốn đầu vào',bg:'#375623',span:3},
+  {label:'VAT đầu vào',bg:'#5C2E00',span:2},
+  {label:'Giá bán ✏',bg:'#1F5099',span:1},
+  {label:'Thuế HKD',bg:'#7F4C02',span:2},
+  {label:'Lợi nhuận',bg:'#1D6B34',span:2},
+  {label:'Hòa vốn tối thiểu',bg:'#444',span:2},
+  {label:'Tình trạng',bg:'#4A3278',span:1},
+];
+const COLS = [
+  {key:'stt',    label:'STT',              w:42,  align:'c', editable:false},
+  {key:'ma',     label:'Mã hàng',          w:100, align:'l', editable:false},
+  {key:'ten',    label:'Tên hàng',         w:220, align:'l', editable:false},
+  {key:'dvt',    label:'ĐVT',              w:55,  align:'c', editable:false},
+  {key:'nhom',   label:'Nhóm',             w:130, align:'l', editable:false},
+  {key:'gvThuc', label:'Giá vốn (đã VAT)', w:128, align:'r', bg:'#EAF3DE',fc:'#27500A',editable:true, type:'price'},
+  {key:'vatAn',  label:'VAT ẩn',           w:95,  align:'r', bg:'#D4F0E8',fc:'#0F6E56',editable:false},
+  {key:'giaChuaVat',label:'Giá chưa VAT', w:106, align:'r', bg:'#E1F5EE',fc:'#085041',editable:false},
+  {key:'vatPct', label:'VAT %',            w:64,  align:'c', bg:'#FDE8D0',fc:'#7F3D00',editable:true, type:'select', opts:[0,5,8,10]},
+  {key:'soLuongNhap',label:'SL nhập',     w:65,  align:'r', bg:'#FDE8D0',fc:'#7F3D00',editable:false},
+  {key:'giaBan', label:'Giá bán ✏',        w:110, align:'r', bg:'#E6F1FB',fc:'#0C447C',editable:true, type:'price'},
+  {key:'thueHKD',label:'Thuế HKD',        w:100, align:'r', bg:'#FAEEDA',fc:'#633806',editable:false},
+  {key:'dtSau',  label:'DT sau thuế',      w:106, align:'r', bg:'#FFF2CC',fc:'#854F0B',editable:false},
+  {key:'ln',     label:'Lợi nhuận',        w:100, align:'r', bg:'#EAF3DE',editable:false},
+  {key:'pGV',    label:'% LN/GV',          w:76,  align:'r', bg:'#D4F0E8',editable:false},
+  {key:'hvMin',  label:'Giá hòa vốn',      w:110, align:'r', bg:'#F1EFE8',fc:'#444',editable:false},
+  {key:'chLech', label:'Chênh lệch',       w:98,  align:'r', bg:'#E8EDF4',editable:false},
+  {key:'trang',  label:'Tình trạng',       w:130, align:'c', editable:false},
+];
+
+const TRANG = {
+  profit:{label:'✓ Lời',       fg:'#27500A',bg:'#C0DD97'},
+  loss:  {label:'✗ Bán dưới HV',fg:'#791F1F',bg:'#F7C1C1'},
+  break: {label:'Hòa vốn',    fg:'#633806',bg:'#FAC775'},
+  np:    {label:'Chưa có giá', fg:'#555',   bg:'#E2E8F0'},
+  nd:    {label:'—',            fg:'#AAA',   bg:'transparent'},
+};
+
+function getGroupBg(ci) {
+  let s=0; for(const g of GROUPS){s+=g.span;if(ci<s)return g.bg;} return '#1F4E79';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BUILD STATIC HEADER
+// ═══════════════════════════════════════════════════════════════════════════
+function buildHeader() {
+  const gh=document.getElementById('ghRow'), ch=document.getElementById('chRow');
+  gh.innerHTML=''; ch.innerHTML='';
+  GROUPS.forEach(g=>{
+    const th=document.createElement('th'); th.className='gh';
+    th.colSpan=g.span; th.style.background=g.bg; th.textContent=g.label;
+    gh.appendChild(th);
+  });
+  COLS.forEach((c,ci)=>{
+    const th=document.createElement('th'); th.className='ch';
+    th.style.background=getGroupBg(ci); th.style.minWidth=c.w+'px';
+    th.dataset.key=c.key; th.innerHTML=c.label+(c.editable?' <span style="opacity:.6;font-size:9px">✏</span>':'');
+    th.onclick=()=>doSort(c.key,th);
+    ch.appendChild(th);
+  });
+}
+
+function doSort(key,th) {
+  if(sortKey===key) sortDir=-sortDir; else {sortKey=key;sortDir=1;}
+  document.querySelectorAll('.ch').forEach(t=>{t.classList.remove('sa','sd');});
+  th.classList.add(sortDir===1?'sa':'sd');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTER BAR
+// ═══════════════════════════════════════════════════════════════════════════
+function buildFilters() {
+  const bar=document.getElementById('filterBar'); bar.innerHTML='';
+  const cnts={};
+  DATA.forEach(r=>{cnts[r.nhom]=(cnts[r.nhom]||0)+1;});
+  getNhoms().forEach(n=>{
+    const btn=document.createElement('button');
+    btn.className='fbtn'+(n===activeNhom?' active':'');
+    btn.textContent= n==='Tất cả'?`Tất cả (${DATA.length})`:`${n} (${cnts[n]||0})`;
+    btn.onclick=()=>{activeNhom=n;buildFilters();render();};
+    bar.appendChild(btn);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATS CARDS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderStats(rows) {
+  const valid   = rows.filter(r=>r.gvThuc>0&&r.giaBan>0);
+  const loi     = valid.filter(r=>r.trang==='profit');
+  const lo      = valid.filter(r=>r.trang==='loss');
+  const hv      = valid.filter(r=>r.trang==='break');
+  const noPrice = rows.filter(r=>r.gvThuc>0&&r.giaBan===0);
+
+  const tongDT    = valid.reduce((s,r)=>s+r.giaBan,0);
+  const tongLN    = valid.reduce((s,r)=>s+(r.ln||0),0);
+  const tongThue  = valid.reduce((s,r)=>s+r.thueHKD,0);
+  const tongVAT   = rows.filter(r=>r.vatPct>0&&r.gvThuc>0).reduce((s,r)=>s+r.vatAn,0);
+  const vat8      = rows.filter(r=>r.vatPct===8&&r.gvThuc>0).reduce((s,r)=>s+r.vatAn,0);
+  const vat10     = rows.filter(r=>r.vatPct===10&&r.gvThuc>0).reduce((s,r)=>s+r.vatAn,0);
+  const pLN       = tongDT>0?tongLN/tongDT:null;
+
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="scard" style="border-left-color:#3182CE">
+      <div class="slabel">📦 Hiển thị / Tổng SP</div>
+      <div class="sval" style="color:#2B6CB0">${rows.length} <span style="font-size:12px;color:#718096">/ ${DATA.length}</span></div>
+      <div class="ssub">${loi.length} lời · ${lo.length} lỗ/dưới HV · ${noPrice.length} chưa giá</div>
+    </div>
+    <div class="scard" style="border-left-color:#38A169">
+      <div class="slabel">💰 Tổng doanh thu</div>
+      <div class="sval" style="color:#276749">₫${fmtZ(tongDT)}</div>
+      <div class="ssub">Giả sử bán 1 đơn vị mỗi SP có giá</div>
+    </div>
+    <div class="scard" style="border-left-color:${tongLN>=0?'#38A169':'#E53E3E'}">
+      <div class="slabel">📈 Tổng lợi nhuận</div>
+      <div class="sval" style="color:${tongLN>=0?'#276749':'#C53030'}">₫${fmtZ(tongLN)}</div>
+      <div class="ssub">${pLN!=null?fmtP(pLN)+' / doanh thu':''}</div>
+    </div>
+    <div class="scard" style="border-left-color:#D97706">
+      <div class="slabel">🏛️ Tổng thuế HKD phải nộp</div>
+      <div class="sval" style="color:#92400E">₫${fmtZ(tongThue)}</div>
+      <div class="ssub">${(parseFloat(document.getElementById('hkdRate').value)||1.5)}% × doanh thu</div>
+    </div>
+    <div class="scard" style="border-left-color:#C53030">
+      <div class="slabel">🧾 Tổng VAT đầu vào (ẩn)</div>
+      <div class="sval" style="color:#742A2A">₫${fmtZ(tongVAT)}</div>
+      <div class="ssub">VAT 8%: ₫${fmtZ(vat8)} · VAT 10%: ₫${fmtZ(vat10)}</div>
+    </div>
+    <div class="scard" style="border-left-color:#6B46C1">
+      <div class="slabel">⚖️ SP có thể lời (bán đúng giá)</div>
+      <div class="sval" style="color:#553C9A">${loi.length} <span style="font-size:12px;color:#718096">/ ${valid.length}</span></div>
+      <div class="ssub">${valid.length>0?Math.round(loi.length/valid.length*100)+'% tỷ lệ lời':''}</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INLINE EDIT
+// ═══════════════════════════════════════════════════════════════════════════
+function setEdit(dataIdx, field, value) {
+  if (!EDITS[dataIdx]) EDITS[dataIdx]={};
+  EDITS[dataIdx][field] = value;
+  render();
+  toast('✓ Đã cập nhật — nhấn "Xuất CSV" để lưu');
+}
+
+function makePriceInput(val, dataIdx, field, color) {
+  const fmted = Math.round(val||0).toLocaleString('vi-VN');
+  return `<div class="edit-cell">
+    <input type="text" value="${fmted}"
+      onfocus="this.value=this.value.replace(/[^\d]/g,''); this.select()"
+      onblur="const v=parseInt(this.value.replace(/[^\d]/g,''))||0; this.value=v.toLocaleString('vi-VN'); setEdit(${dataIdx},'${field}',v)"
+      onkeydown="if(event.key==='Enter')this.blur()"
+      style="color:${color||'inherit'};font-weight:600;text-align:right"/>
+    <span class="edit-icon">✏</span>
+  </div>`;
+}
+
+function makeSelectInput(val, dataIdx, field, opts, color) {
+  const options = opts.map(o=>`<option value="${o}" ${o==val?'selected':''}>${o}%</option>`).join('');
+  return `<div class="edit-cell">
+    <select onchange="setEdit(${dataIdx},'${field}',Number(this.value))" style="color:${color||'inherit'};font-weight:700;text-align:center">
+      ${options}
+    </select>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER TABLE
+// ═══════════════════════════════════════════════════════════════════════════
+function render() {
+  const rows = getRows();
+  renderStats(rows);
+
+  document.getElementById('resultCount').textContent = q ? `${rows.length} kết quả cho "${q}"` : `${rows.length} sản phẩm`;
+
+  const tb = document.getElementById('tbody');
+  if (!rows.length) {
+    tb.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">Không tìm thấy sản phẩm 🔍</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = rows.map((r,i) => {
+    const di = DATA.findIndex(d=>d.ma===r.ma && d.dvt===r.dvt);
+    const st = TRANG[r.trang] || TRANG.nd;
+    const lnC  = r.ln>0?'#175404':r.ln<0?'#791F1F':'#718096';
+    const pGVC = r.pGV>0?'#085041':r.pGV<0?'#A32D2D':'#718096';
+    const clC  = r.chLech>0?'#0C447C':r.chLech<0?'#A32D2D':'#718096';
+    const vatBg= r.vatPct===8?'#FDE8D0':r.vatPct===10?'#FFD6B0':'#F5F5F5';
+    const vatFc= r.vatPct===8?'#7F3D00':r.vatPct===10?'#5C2200':'#888';
+    const nd   = r.gvThuc===0, ns=r.giaBan===0;
+    const dim  = '#BBBBBB';
+    const newTag = r.coPhieuNhap?'<span class="tag-new">Mới</span>':'';
+
+    return `<tr>
+      <td class="c" style="color:#718096">${i+1}</td>
+      <td class="l" style="color:#185FA5;font-weight:600">${hl(r.ma,q)}</td>
+      <td class="l" style="color:#0C447C;font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${r.ten}">${hl(r.ten,q)}${newTag}</td>
+      <td class="c" style="color:#378ADD">${r.dvt}</td>
+      <td class="l" style="color:#4A5568;font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis">${r.nhom}</td>
+
+      <td class="r" style="background:#EAF3DE;color:${nd?dim:'#27500A'}">${nd?'—':makePriceInput(r.gvThuc,di,'gvThuc','#27500A')}</td>
+      <td class="r" style="background:#D4F0E8;color:${nd||r.vatPct===0?dim:'#0F6E56'}">${nd||r.vatPct===0?'—':fmt(r.vatAn)}</td>
+      <td class="r" style="background:#E1F5EE;color:${nd?dim:'#085041'}">${nd?'—':fmt(r.giaChuaVat)}</td>
+
+      <td class="c" style="background:${vatBg};color:${vatFc}">${makeSelectInput(r.vatPct,di,'vatPct',[0,5,8,10],vatFc)}</td>
+      <td class="r" style="background:#FDE8D0;color:#7F3D00;font-weight:600">${r.soLuongNhap>0?fmt(r.soLuongNhap):'—'}</td>
+
+      <td class="r" style="background:#E6F1FB;color:${ns?dim:'#0C447C'}">${makePriceInput(r.giaBan,di,'giaBan','#0C447C')}</td>
+
+      <td class="r" style="background:#FAEEDA;color:${!nd&&!ns?'#633806':dim};font-weight:600">${!nd&&!ns?fmt(r.thueHKD):'—'}</td>
+      <td class="r" style="background:#FFF2CC;color:${!nd&&!ns?'#854F0B':dim}">${!nd&&!ns?fmt(r.dtSau):'—'}</td>
+
+      <td class="r" style="background:#EAF3DE;color:${r.ln!=null?lnC:dim};font-weight:${r.ln!=null?700:400}">${r.ln!=null?fmt(r.ln):'—'}</td>
+      <td class="r" style="background:#D4F0E8;color:${r.pGV!=null?pGVC:dim};font-weight:${r.pGV!=null?600:400}">${r.pGV!=null?fmtP(r.pGV):'—'}</td>
+
+      <td class="r" style="background:#F1EFE8;color:${nd?dim:'#444'};font-weight:600">${nd?'—':fmt(r.hvMin)}</td>
+      <td class="r" style="background:#E8EDF4;color:${r.chLech!=null?clC:dim};font-weight:${r.chLech!=null?600:400}">${r.chLech!=null?fmt(r.chLech):'—'}</td>
+
+      <td class="c"><span class="badge" style="background:${st.bg};color:${st.fg}">${st.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('fnote').textContent =
+    `Giá hòa vốn = Giá vốn thực ÷ (1 − ${document.getElementById('hkdRate').value}%) làm tròn lên 500đ · Lợi nhuận = DT sau thuế HKD − Giá vốn thực · Cột ✏ có thể sửa trực tiếp`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════════════════════════
+let debTimer;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(debTimer);
+  debTimer = setTimeout(()=>{
+    q=this.value.trim();
+    document.getElementById('btnClear').style.display=q?'':'none';
+    render();
+  }, 150);
+});
+function clearSearch() {
+  q=''; document.getElementById('searchInput').value='';
+  document.getElementById('btnClear').style.display='none';
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOAD BẢNG GIÁ (.xlsx)
+// ═══════════════════════════════════════════════════════════════════════════
+function loadBangGia(input) {
+  const file = input.files[0]; if(!file) return;
+  const rd = new FileReader();
+  rd.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1});
+      const h = raw[0];
+      const fi = s => h.findIndex(x=>String(x||'').includes(s));
+      const iGV = fi('Giá nhập cuối')>=0 ? fi('Giá nhập cuối') : fi('Giá vốn');
+      const rows = raw.slice(1).filter(r=>r[fi('Mã hàng')]).map(r=>({
+        ma:      String(r[fi('Mã hàng')]||'').trim(),
+        ten:     String(r[fi('Tên hàng')]||'').trim(),
+        dvt:     String(r[fi('Đơn vị')]||'').trim(),
+        nhom:    String(r[fi('Nhóm')]||'').trim(),
+        ton:     parseFloat(r[fi('Tồn')])||0,
+        giaVon:  parseFloat(r[iGV])||0,
+        giaVonThuc: parseFloat(r[iGV])||0,
+        bangGia: parseFloat(r[fi('Bảng giá chung')])||0,
+        giaNhapMoi:0, donGiaNhap:0, vatTien:0, soLuongNhap:0, vatPct:0, coPhieuNhap:false,
+      }));
+      DATA = rows;
+      EDITS = {};
+      // re-apply nhapMap if exists
+      applyNhapMap();
+      buildFilters();
+      render();
+      document.getElementById('dataSourceLabel').textContent = `✓ ${file.name} (${rows.length} SP)`;
+      toast(`✓ Đã tải ${rows.length} sản phẩm từ ${file.name}`);
+    } catch(e) { alert('Lỗi đọc file: ' + e.message); }
+    input.value='';
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOAD PHIẾU NHẬP (.csv)
+// ═══════════════════════════════════════════════════════════════════════════
+function loadPhieuNhap(input) {
+  const file = input.files[0]; if(!file) return;
+  const rd = new FileReader();
+  rd.onload = ev => {
+    try {
+      const bytes = new Uint8Array(ev.target.result);
+      let txt = '';
+      for(let i=0;i<bytes.length;i++) txt+=String.fromCharCode(bytes[i]);
+      const lines = txt.split('\n').filter(l=>l.trim());
+      const hdr = lines[0].split(',');
+      const fi  = s => hdr.findIndex(h=>h.includes(s));
+      const iDg=fi('n gi'), iVat=fi('VAT nh'), iGn=fi('Gi  nh'), iSl=fi('l??ng'), iMa=fi('hng');
+      nhapMap = {};
+      lines.slice(1).forEach(line => {
+        const cols = line.split(',');
+        const ma  = String(cols[iMa]||'').trim().replace(/[^\x20-\x7E]/g,'?');
+        const dg  = pnum(cols[iDg]);
+        const vat = pnum(cols[iVat]);
+        const gn  = pnum(cols[iGn]);
+        const sl  = pnum(cols[iSl]);
+        if (dg > 0 && !nhapMap[ma]) {
+          const vr = Math.round(vat/dg*100);
+          nhapMap[ma] = { donGia:dg, vatTien:vat, giaNhap:gn, soLuong:sl, vatPct:Math.min([0,5,8,10].reduce((a,b)=>Math.abs(b-vr)<Math.abs(a-vr)?b:a)) };
+        }
+      });
+      applyNhapMap();
+      render();
+      toast(`✓ Đã ghép ${Object.keys(nhapMap).length} SP từ phiếu nhập`);
+    } catch(e) { alert('Lỗi đọc CSV: '+e.message); }
+    input.value='';
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+function applyNhapMap() {
+  DATA.forEach(r => {
+    const n = nhapMap[r.ma];
+    if (n) {
+      r.giaNhapMoi  = n.giaNhap;
+      r.giaVonThuc  = n.giaNhap;
+      r.donGiaNhap  = n.donGia;
+      r.vatTien     = n.vatTien;
+      r.soLuongNhap = n.soLuong;
+      r.vatPct      = n.vatPct;
+      r.coPhieuNhap = true;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESET TO DEFAULT
+// ═══════════════════════════════════════════════════════════════════════════
+function resetToDefault() {
+  DATA = JSON.parse(JSON.stringify(SEED));
+  EDITS = {}; nhapMap = {};
+  activeNhom = 'Tất cả'; q = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('btnClear').style.display='none';
+  document.getElementById('dataSourceLabel').textContent = 'Dữ liệu mẫu';
+  buildFilters(); render();
+  toast('✓ Đã khôi phục dữ liệu mẫu');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT CSV
+// ═══════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  const rows = getRows();
+  const hdr  = ['Mã hàng','Tên hàng','ĐVT','Nhóm','Tồn kho','Giá vốn thực','VAT %','VAT ẩn','Giá chưa VAT','Giá bán','Thuế HKD','DT sau thuế','Lợi nhuận','% LN/GV','Giá hòa vốn','Chênh lệch','Tình trạng'];
+  const csvRows = [hdr.join(',')];
+  rows.forEach(r => {
+    csvRows.push([
+      r.ma, '"'+r.ten.trim()+'"', r.dvt, '"'+r.nhom+'"', r.ton,
+      Math.round(r.gvThuc||0), r.vatPct,
+      Math.round(r.vatAn||0), Math.round(r.giaChuaVat||0),
+      Math.round(r.giaBan||0), Math.round(r.thueHKD||0), Math.round(r.dtSau||0),
+      r.ln!=null?Math.round(r.ln):'',
+      r.pGV!=null?(r.pGV*100).toFixed(1)+'%':'',
+      Math.round(r.hvMin||0), r.chLech!=null?Math.round(r.chLech):'',
+      {profit:'Lời',loss:'Lỗ/Dưới HV',break:'Hòa vốn',np:'Chưa có giá',nd:'—'}[r.trang]||'',
+    ].join(','));
+  });
+  const blob = new Blob(['\uFEFF'+csvRows.join('\n')], {type:'text/csv;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href=url; a.download='bang-tinh-gia.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast(`✓ Đã xuất ${rows.length} dòng`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+buildHeader();
+buildFilters();
+document.getElementById('dataSourceLabel').textContent = 'Dữ liệu mẫu (329 SP)';
+render();
+</script>
+</body>
+</html>
