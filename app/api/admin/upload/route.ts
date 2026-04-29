@@ -1,56 +1,28 @@
-import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
-import { parseTable } from "@/lib/pricing";
-import { saveDashboardPayload } from "@/lib/storage";
+export const runtime = "nodejs";
 
-export const dynamic = "force-dynamic";
+import { parseExcel } from "@/lib/parser";
+import { calculateRow } from "@/lib/calculator";
 
-function unauthorized(message: string) {
-  return NextResponse.json({ ok: false, message }, { status: 401 });
-}
-
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const form = await request.formData();
-    const file = form.get("file");
-    const token = String(form.get("token") ?? request.headers.get("x-admin-token") ?? "");
+    const formData = await req.formData();
+    const file = formData.get("file") as File;
 
-    if (process.env.ADMIN_TOKEN && token !== process.env.ADMIN_TOKEN) {
-      return unauthorized("Admin token không đúng.");
+    if (!file) {
+      return Response.json({ error: "No file" }, { status: 400 });
     }
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ ok: false, message: "Chưa có file upload." }, { status: 400 });
-    }
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
+    const rows = parseExcel(buffer);
+    const result = rows.map(calculateRow);
 
-    if (!worksheet) {
-      return NextResponse.json({ ok: false, message: "Không đọc được sheet đầu tiên trong file." }, { status: 400 });
-    }
-
-    const table = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: "", raw: false });
-    const headers = (table[0] ?? []).map((item) => String(item ?? ""));
-    const rows = table.slice(1);
-
-    if (!headers.length || !rows.length) {
-      return NextResponse.json({ ok: false, message: "File chưa có dữ liệu bảng giá." }, { status: 400 });
-    }
-
-    const payload = parseTable(headers, rows, file.name);
-    await saveDashboardPayload(payload);
-
-    return NextResponse.json({
-      ok: true,
-      rowCount: payload.rows.length,
-      sourceFileName: file.name,
-      summary: payload.summary,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Upload thất bại.";
-    return NextResponse.json({ ok: false, message }, { status: 500 });
+    return Response.json(result);
+  } catch (err: any) {
+    return Response.json(
+      { error: err.message || "Upload failed" },
+      { status: 500 }
+    );
   }
 }
