@@ -1,0 +1,9 @@
+{
+  "name": "bang-gia-phan-tich",
+  "version": "1.0.0",
+  "description": "Bảng giá & phân tích lợi nhuận - tự động từ Excel",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "dev": "python3 scripts/build.py && npx serve public"
+  }
+}
