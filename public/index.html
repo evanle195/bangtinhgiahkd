@@ -1,1 +1,374 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 Bảng Giá & Phân Tích Lợi Nhuận</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#f0f2f5;min-height:100vh}
+
+/* ── Header ── */
+.header{background:linear-gradient(135deg,#1e3a8a,#1e40af,#2563eb);color:#fff;padding:24px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.header-left h1{font-size:1.75rem;font-weight:700;letter-spacing:-.5px}
+.header-left p{opacity:.8;font-size:.9rem;margin-top:4px}
+.header-right{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.update-info{font-size:.8rem;opacity:.7;text-align:right}
+
+/* ── Buttons ── */
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.875rem;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+.btn-export-csv{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.btn-export-csv:hover{background:rgba(255,255,255,.25)}
+.btn-export-json{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.btn-export-json:hover{background:rgba(255,255,255,.2)}
+.btn-refresh{background:#f59e0b;color:#fff}
+.btn-refresh:hover{background:#d97706;transform:translateY(-1px)}
+
+/* ── Loading / Error ── */
+.state-box{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;color:#6b7280}
+.spinner{width:48px;height:48px;border:4px solid #e5e7eb;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:32px;max-width:480px;text-align:center;color:#7f1d1d}
+.error-box h3{font-size:1.1rem;margin-bottom:8px}
+
+/* ── Stats ── */
+.content{padding:24px 32px;max-width:1800px;margin:0 auto}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:4px solid #e5e7eb;display:flex;flex-direction:column;gap:4px}
+.stat-card.blue  {border-left-color:#3b82f6}
+.stat-card.green {border-left-color:#10b981}
+.stat-card.amber {border-left-color:#f59e0b}
+.stat-card.orange{border-left-color:#f97316}
+.stat-card.emerald{border-left-color:#059669}
+.stat-card.red   {border-left-color:#ef4444}
+.stat-card.gray  {border-left-color:#9ca3af}
+.stat-card.indigo{border-left-color:#6366f1}
+.stat-label{font-size:.8rem;color:#6b7280;font-weight:500}
+.stat-value{font-size:1.5rem;font-weight:700;color:#111827;line-height:1.2}
+.stat-sub{font-size:.75rem;color:#9ca3af;margin-top:2px}
+
+/* ── Filters ── */
+.filter-bar{background:#fff;border-radius:12px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.search-wrap{position:relative;flex:1;min-width:220px}
+.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#9ca3af;pointer-events:none}
+.search-input{width:100%;padding:9px 12px 9px 38px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.875rem;outline:none;transition:border-color .15s}
+.search-input:focus{border-color:#3b82f6}
+.filter-select{padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.875rem;outline:none;background:#fff;cursor:pointer;min-width:180px}
+.filter-select:focus{border-color:#3b82f6}
+.filter-danh-gia{display:flex;gap:8px}
+.badge-filter{padding:7px 14px;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+.badge-filter.all    {background:#f3f4f6;color:#374151;border-color:#e5e7eb}
+.badge-filter.loi    {background:#dcfce7;color:#166534;border-color:#bbf7d0}
+.badge-filter.lo     {background:#fee2e2;color:#7f1d1d;border-color:#fca5a5}
+.badge-filter.chua   {background:#f3f4f6;color:#374151;border-color:#e5e7eb}
+.badge-filter.active {box-shadow:0 0 0 2px currentColor}
+.result-count{font-size:.8rem;color:#6b7280;margin-left:auto;white-space:nowrap}
+
+/* ── Table ── */
+.table-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden}
+.table-inner{overflow-x:auto;max-height:calc(100vh - 340px)}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+thead{background:linear-gradient(135deg,#1e3a8a,#2563eb);position:sticky;top:0;z-index:10}
+th{padding:13px 12px;color:#fff;font-weight:600;white-space:nowrap;text-align:left;border-right:1px solid rgba(255,255,255,.1)}
+th:last-child{border-right:none}
+th.num{text-align:right}
+td{padding:11px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{transition:background .1s}
+tbody tr:hover{background:#f8fafc}
+tbody tr.row-loi {background:#f0fdf4}
+tbody tr.row-lo  {background:#fff5f5}
+tbody tr.row-chua{background:#f9fafb}
+tbody tr.row-loi:hover {background:#dcfce7}
+tbody tr.row-lo:hover  {background:#fee2e2}
+
+.tag-nhom{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;background:#eff6ff;color:#1e40af;white-space:nowrap}
+.badge-result{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:.78rem;font-weight:700;white-space:nowrap}
+.badge-loi {background:#10b981;color:#fff}
+.badge-lo  {background:#ef4444;color:#fff}
+.badge-chua{background:#9ca3af;color:#fff}
+
+.col-input  {background:#eff6ff}
+.col-vat    {background:#fff7ed}
+.col-tongv  {background:#f5f3ff}
+.col-ketqua {background:#f0fdf4}
+.col-thue   {background:#fffbeb}
+
+.no-data{text-align:center;padding:60px 20px;color:#9ca3af}
+.no-data svg{margin:0 auto 16px;display:block;color:#d1d5db}
+
+/* ── Footer ── */
+.footer{text-align:center;padding:24px;color:#9ca3af;font-size:.8rem}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .header{padding:16px}
+  .header-left h1{font-size:1.3rem}
+  .content{padding:16px}
+  .filter-bar{flex-direction:column}
+  .filter-danh-gia{flex-wrap:wrap}
+  .result-count{margin-left:0}
+  .table-inner{max-height:60vh}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>📊 Bảng Giá &amp; Phân Tích Lợi Nhuận</h1>
+    <p>Dữ liệu tự động từ file Excel trên GitHub</p>
+  </div>
+  <div class="header-right">
+    <div class="update-info" id="updateInfo"></div>
+    <button class="btn btn-refresh" onclick="loadData()">🔄 Làm mới</button>
+    <button class="btn btn-export-csv" onclick="exportCSV()">📥 CSV</button>
+    <button class="btn btn-export-json" onclick="exportJSON()">📥 JSON</button>
+  </div>
+</div>
+
+<!-- Loading / Error / Content -->
+<div id="loadingState" class="state-box">
+  <div class="spinner"></div>
+  <p>Đang tải dữ liệu...</p>
+</div>
+
+<div id="errorState" class="state-box" style="display:none">
+  <div class="error-box">
+    <h3>❌ Không tải được dữ liệu</h3>
+    <p id="errorMsg" style="font-size:.875rem;margin-top:8px;line-height:1.6"></p>
+    <button class="btn btn-refresh" onclick="loadData()" style="margin-top:16px">🔄 Thử lại</button>
+  </div>
+</div>
+
+<div id="mainContent" class="content" style="display:none">
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="search-input" id="searchInput" placeholder="Tìm theo tên, mã hàng..." oninput="applyFilters()">
+    </div>
+    <select class="filter-select" id="groupFilter" onchange="applyFilters()">
+      <option value="">📂 Tất cả nhóm hàng</option>
+    </select>
+    <div class="filter-danh-gia">
+      <span class="badge-filter all active" onclick="setDG('')">Tất cả</span>
+      <span class="badge-filter loi"  onclick="setDG('Lời')">✅ Lời</span>
+      <span class="badge-filter lo"   onclick="setDG('Lỗ')">❌ Lỗ</span>
+      <span class="badge-filter chua" onclick="setDG('Chưa có giá')">⚪ Chưa giá</span>
+    </div>
+    <span class="result-count" id="resultCount"></span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="table-inner">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Mã hàng</th>
+            <th>Tên hàng</th>
+            <th>ĐVT</th>
+            <th>Nhóm hàng</th>
+            <th class="num">Tồn kho</th>
+            <th class="num col-input">Giá nhập (chưa VAT)</th>
+            <th class="num col-vat">VAT %</th>
+            <th class="num col-vat">VAT đầu vào</th>
+            <th class="num col-tongv">Tổng giá vốn thực</th>
+            <th class="num col-ketqua">Bảng giá (bán)</th>
+            <th class="num col-thue">Thuế HKD</th>
+            <th class="num col-ketqua">Lợi nhuận thuần</th>
+            <th class="num col-input">Giá bán hòa vốn</th>
+            <th class="num">% Lợi nhuận</th>
+            <th>Đánh giá</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div id="noData" class="no-data" style="display:none">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <p>Không tìm thấy sản phẩm nào</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  © 2026 Bảng Giá &amp; Phân Tích &nbsp;·&nbsp; Dữ liệu cập nhật tự động khi deploy
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let allData = [];
+let filteredData = [];
+let activeDG = '';
+
+// ── Load data ────────────────────────────────────────────────────────────────
+async function loadData() {
+  show('loadingState');
+  try {
+    // Thêm cache-bust nhỏ để luôn lấy data mới nhất
+    const res = await fetch('./data/products.json?v=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+    allData = await res.json();
+
+    if (!Array.isArray(allData) || allData.length === 0) {
+      throw new Error('File products.json trống hoặc sai định dạng');
+    }
+
+    // Hiển thị thời điểm load
+    document.getElementById('updateInfo').textContent =
+      `${allData.length} sản phẩm · tải lúc ${new Date().toLocaleTimeString('vi-VN')}`;
+
+    populateGroups();
+    applyFilters();
+    show('mainContent');
+  } catch(err) {
+    console.error(err);
+    document.getElementById('errorMsg').textContent = err.message;
+    show('errorState');
+  }
+}
+
+function show(id) {
+  ['loadingState','errorState','mainContent'].forEach(s =>
+    document.getElementById(s).style.display = s === id ? '' : 'none'
+  );
+}
+
+// ── Filters ──────────────────────────────────────────────────────────────────
+function populateGroups() {
+  const sel = document.getElementById('groupFilter');
+  const groups = [...new Set(allData.map(p => p.nhomHang))].sort();
+  sel.innerHTML = '<option value="">📂 Tất cả nhóm hàng</option>' +
+    groups.map(g => `<option value="${g}">${g}</option>`).join('');
+}
+
+function setDG(val) {
+  activeDG = val;
+  document.querySelectorAll('.badge-filter').forEach(b => b.classList.remove('active'));
+  const map = { '': 'all', 'Lời': 'loi', 'Lỗ': 'lo', 'Chưa có giá': 'chua' };
+  document.querySelector('.badge-filter.' + (map[val] || 'all')).classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const q   = document.getElementById('searchInput').value.toLowerCase().trim();
+  const grp = document.getElementById('groupFilter').value;
+
+  filteredData = allData.filter(p => {
+    if (q   && !p.tenHang.toLowerCase().includes(q) && !p.maHang.toLowerCase().includes(q)) return false;
+    if (grp && p.nhomHang !== grp) return false;
+    if (activeDG && p.danhGia !== activeDG) return false;
+    return true;
+  });
+
+  document.getElementById('resultCount').textContent =
+    `Hiển thị ${filteredData.length} / ${allData.length} sản phẩm`;
+
+  renderStats();
+  renderTable();
+}
+
+// ── Render Stats ─────────────────────────────────────────────────────────────
+function renderStats() {
+  const d = filteredData;
+  const sum = k => d.reduce((a,p) => a + (p[k]||0), 0);
+  const loi = d.filter(p => p.danhGia === 'Lời').length;
+  const lo  = d.filter(p => p.danhGia === 'Lỗ').length;
+  const chua = d.filter(p => p.danhGia === 'Chưa có giá').length;
+  const profPct = sum('tongGV') > 0 ? sum('lnThuan') / sum('tongGV') * 100 : 0;
+
+  document.getElementById('statsGrid').innerHTML = [
+    { cls:'blue',   label:'💰 Tổng doanh thu',     value: fc(sum('bangGia')), sub: `${d.length} sản phẩm` },
+    { cls:'orange', label:'🧡 Tổng VAT đầu vào',   value: fc(sum('vatDV')),  sub: '' },
+    { cls:'indigo', label:'🔵 Tổng giá vốn thực',  value: fc(sum('tongGV')), sub: '' },
+    { cls:'amber',  label:'💛 Tổng thuế HKD',       value: fc(sum('thueHKD')),sub: '' },
+    { cls:'emerald',label:'💚 Tổng lợi nhuận thuần',value: fc(sum('lnThuan')),sub: `TB ${profPct.toFixed(1)}%` },
+    { cls:'green',  label:'✅ Sản phẩm lời',         value: loi,               sub: pct(loi, d.length) },
+    { cls:'red',    label:'❌ Sản phẩm lỗ',          value: lo,                sub: pct(lo,  d.length) },
+    { cls:'gray',   label:'⚪ Chưa có giá',          value: chua,              sub: pct(chua,d.length) },
+  ].map(s => `
+    <div class="stat-card ${s.cls}">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value">${s.value}</div>
+      ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
+    </div>`).join('');
+}
+
+// ── Render Table ─────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody  = document.getElementById('tableBody');
+  const noData = document.getElementById('noData');
+
+  if (!filteredData.length) {
+    tbody.innerHTML = '';
+    noData.style.display = '';
+    return;
+  }
+  noData.style.display = 'none';
+
+  tbody.innerHTML = filteredData.map((p, i) => {
+    const rc  = p.danhGia === 'Lời' ? 'row-loi' : p.danhGia === 'Lỗ' ? 'row-lo' : 'row-chua';
+    const bc  = p.danhGia === 'Lời' ? 'badge-loi' : p.danhGia === 'Lỗ' ? 'badge-lo' : 'badge-chua';
+    const ico = p.danhGia === 'Lời' ? '✅' : p.danhGia === 'Lỗ' ? '❌' : '⚪';
+    return `<tr class="${rc}">
+      <td style="color:#9ca3af;font-size:.8rem">${i+1}</td>
+      <td style="font-family:monospace;font-size:.8rem;color:#6b7280">${p.maHang}</td>
+      <td style="font-weight:500;max-width:260px">${p.tenHang}</td>
+      <td style="color:#6b7280">${p.donViTinh}</td>
+      <td><span class="tag-nhom">${p.nhomHang}</span></td>
+      <td class="num">${fmt(p.tonKho)}</td>
+      <td class="num col-input">${fc(p.giaNhap)}</td>
+      <td class="num col-vat">${(p.vatPct*100).toFixed(0)}%</td>
+      <td class="num col-vat">${fc(p.vatDV)}</td>
+      <td class="num col-tongv" style="font-weight:600">${fc(p.tongGV)}</td>
+      <td class="num col-ketqua" style="font-weight:600">${fc(p.bangGia)}</td>
+      <td class="num col-thue">${fc(p.thueHKD)}</td>
+      <td class="num col-ketqua" style="font-weight:700;color:${p.lnThuan>=0?'#059669':'#dc2626'}">${fc(p.lnThuan)}</td>
+      <td class="num col-input">${fc(p.hoaVon)}</td>
+      <td class="num" style="font-weight:600;color:${p.pctLN>=0?'#059669':'#dc2626'}">${p.pctLN.toFixed(2)}%</td>
+      <td><span class="badge-result ${bc}">${ico} ${p.danhGia}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!filteredData.length) return;
+  const h = ['Mã hàng','Tên hàng','ĐVT','Nhóm hàng','Tồn kho','Giá nhập','VAT %','VAT ĐV','Tổng GV','Bảng giá','Thuế HKD','LN Thuần','Hòa vốn','% LN','Đánh giá'];
+  const rows = filteredData.map(p =>
+    [p.maHang,p.tenHang,p.donViTinh,p.nhomHang,p.tonKho,p.giaNhap,(p.vatPct*100).toFixed(0),p.vatDV,p.tongGV,p.bangGia,p.thueHKD,p.lnThuan,p.hoaVon,p.pctLN.toFixed(2),p.danhGia]
+  );
+  dl('\ufeff' + [h,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n'),
+     `bang-gia-${today()}.csv`, 'text/csv;charset=utf-8');
+}
+
+function exportJSON() {
+  if (!filteredData.length) return;
+  dl(JSON.stringify(filteredData,null,2), `bang-gia-${today()}.json`, 'application/json');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const fmt = v => v % 1 === 0 ? v.toLocaleString('vi-VN') : v.toFixed(2);
+const fc  = v => new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',minimumFractionDigits:0}).format(v);
+const pct = (n,t) => t > 0 ? `${(n/t*100).toFixed(0)}% tổng số` : '';
+const today = () => new Date().toISOString().split('T')[0];
+function dl(content, name, mime) {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([content],{type:mime})),
+    download: name, style:'display:none'
+  });
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
 
